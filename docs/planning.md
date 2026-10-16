@@ -117,7 +117,7 @@ Relatório anual lê `disbursements` e `monthly_fees` (milhares de linhas), sín
 - CORS: não instalo. Não há outro origin.
 - Rate limit com `rack-attack`: login e POST de import.
 - SSRF: o upload é arquivo, nunca URL vinda do usuário. O CSV oficial entra por host fixo `sequra.github.io`, escrito no código. Sem HTTP para destino informado no form.
-- Senha com Devise, só login. Seed do operador só com `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`. Em staging/production, seed sem essas variáveis falha. Sem senha default no repositório.
+- Senha com Devise, só login. O seed cria o operador em qualquer ambiente. Sem `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`, usa `operator@lagom.local` e `lagom-operator-password`. As variáveis só trocam esses valores.
 - `/jobs` só abre com o operador logado. Sem isso o painel de fila ficaria público.
 
 ## Ambientes e Railway
