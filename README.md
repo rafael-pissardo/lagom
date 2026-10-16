@@ -22,7 +22,7 @@ Planning: [docs/planning.md](docs/planning.md).
 ```bash
 docker compose up -d
 bundle install
-bin/rails db:prepare
+bin/rails db:prepare db:seed
 bin/dev
 ```
 
@@ -32,13 +32,12 @@ In another terminal:
 bin/jobs
 ```
 
-There is no default operator. `users` stays empty until you seed one:
+`db:seed` creates the operator in every environment, including production:
 
-```bash
-OPERATOR_EMAIL=you@example.com OPERATOR_PASSWORD='choose-a-password' bin/rails db:seed
-```
+- email: `operator@lagom.local`
+- password: `lagom-operator-password`
 
-Sign in with that email and password. The same two variables are required in staging and production; seed raises there when either one is missing.
+`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` override those values when set. They are optional.
 
 Postgres defaults to `localhost:5434` so it does not collide with other local databases.
 
@@ -99,11 +98,11 @@ Create two environments (staging, production), attach Postgres, set:
 - `RAILS_ENV`
 - `DATABASE_URL`
 - `SECRET_KEY_BASE`
-- `OPERATOR_EMAIL`
-- `OPERATOR_PASSWORD`
 - `APP_HOST`
 
-Run web + worker processes from the `Procfile`. Release runs `db:migrate db:seed`.
+`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` are optional. When they are absent, seed uses `operator@lagom.local` and `lagom-operator-password`.
+
+Run web + worker processes from the `Procfile`. The Railway pre-deploy command and the production container both run `db:prepare db:seed` before the server starts, including when the database already exists.
 
 ## Trade-offs for the next version
 
