@@ -4,10 +4,10 @@
   <% end %>
 
   <%= render CardComponent.new(title: t("sessions.new.title")) do %>
-    <%= form_with url: session_path, class: "space-y-4" do |form| %>
+    <%= form_with model: resource, scope: resource_name, url: session_path(resource_name), class: "space-y-4" do |form| %>
       <div class="space-y-2">
-        <%= form.label :email_address, t("labels.email_address"), class: "block text-sm text-white/70" %>
-        <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm outline-none ring-lagom-accent focus:ring-2" %>
+        <%= form.label :email, t("labels.email"), class: "block text-sm text-white/70" %>
+        <%= form.email_field :email, required: true, autofocus: true, autocomplete: "username", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm outline-none ring-lagom-accent focus:ring-2" %>
       </div>
       <div class="space-y-2">
         <%= form.label :password, t("labels.password"), class: "block text-sm text-white/70" %>

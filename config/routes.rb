@@ -1,6 +1,5 @@
 Rails.application.routes.draw do
-  resource :session
-  resources :passwords, param: :token
+  devise_for :users, only: :sessions, controllers: { sessions: "users/sessions" }
 
   resources :merchants, only: %i[index show] do
     resources :orders, only: :index

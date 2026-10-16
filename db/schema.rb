@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,7 +57,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["status"], name: "index_csv_imports_on_status"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "csv_imports_status_check"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'processing'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "csv_imports_status_check"
   end
 
   create_table "disbursements", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -88,7 +88,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
     t.datetime "updated_at", null: false
     t.index ["disbursement_frequency"], name: "index_merchants_on_disbursement_frequency"
     t.index ["reference"], name: "index_merchants_on_reference", unique: true
-    t.check_constraint "disbursement_frequency::text = ANY (ARRAY['DAILY'::character varying, 'WEEKLY'::character varying]::text[])", name: "merchants_disbursement_frequency_check"
+    t.check_constraint "disbursement_frequency::text = ANY (ARRAY['DAILY'::character varying::text, 'WEEKLY'::character varying::text])", name: "merchants_disbursement_frequency_check"
     t.check_constraint "minimum_monthly_fee_cents >= 0", name: "merchants_minimum_monthly_fee_cents_non_negative"
   end
 
@@ -124,15 +124,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
     t.index ["merchant_id"], name: "index_orders_on_merchant_id"
     t.check_constraint "amount_cents >= 0", name: "orders_amount_cents_non_negative"
     t.check_constraint "commission_cents >= 0", name: "orders_commission_cents_non_negative"
-  end
-
-  create_table "sessions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.uuid "user_id", null: false
-    t.string "ip_address"
-    t.string "user_agent"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
   create_table "solid_queue_batch_executions", force: :cascade do |t|
@@ -286,11 +277,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.string "email_address", null: false
-    t.string "password_digest", null: false
+    t.string "email", null: false
+    t.string "encrypted_password", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index ["email"], name: "index_users_on_email", unique: true
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -299,7 +290,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_180001) do
   add_foreign_key "monthly_fees", "merchants", on_delete: :restrict
   add_foreign_key "orders", "disbursements", on_delete: :restrict
   add_foreign_key "orders", "merchants", on_delete: :restrict
-  add_foreign_key "sessions", "users"
   add_foreign_key "solid_queue_batch_executions", "solid_queue_batches", column: "batch_id", on_delete: :cascade
   add_foreign_key "solid_queue_batch_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

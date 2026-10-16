@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "Operator flow", type: :system do
   it "signs in and opens the yearly report" do
-    create(:user, email_address: "ops@lagom.test", password: "password123456")
+    create(:user, email: "ops@lagom.test", password: "password123456")
     merchant = create(:merchant, reference: "ui_co", live_on: Date.new(2022, 9, 1))
     create(
       :disbursement,
@@ -14,7 +14,7 @@ RSpec.describe "Operator flow", type: :system do
       net_cents: 9_905
     )
 
-    visit new_session_path
+    visit new_user_session_path
     fill_in "Email address", with: "ops@lagom.test"
     fill_in "Password", with: "password123456"
     click_button "Sign in"

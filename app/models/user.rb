@@ -1,6 +1,5 @@
 class User < ApplicationRecord
-  has_secure_password
-  has_many :sessions, dependent: :destroy
+  devise :database_authenticatable, :validatable
 
-  normalizes :email_address, with: ->(e) { e.strip.downcase }
+  normalizes :email, with: ->(email) { email.strip.downcase }
 end
