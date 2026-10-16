@@ -4,6 +4,8 @@ Lagom is a Swedish word for balance and the right measure. This app calculates f
 
 Built for the [seQura backend coding challenge](https://sequra.github.io/backend-challenge/).
 
+Planning: [docs/planning.md](docs/planning.md).
+
 ## Stack
 
 - Ruby 4.0.7
