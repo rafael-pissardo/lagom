@@ -8,9 +8,8 @@ module ApplicationCable
 
     private
       def set_current_user
-        if session = Session.find_by(id: cookies.signed[:session_id])
-          self.current_user = session.user
-        end
+        user = request.env["warden"]&.user
+        self.current_user = user if user
       end
   end
 end

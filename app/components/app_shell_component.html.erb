@@ -14,7 +14,7 @@
         <%= helpers.link_to t("nav.jobs"), "/jobs", class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
       </nav>
       <div class="mt-10">
-        <%= helpers.button_to t("nav.sign_out"), session_path, method: :delete, class: "text-sm text-white/60 hover:text-white" %>
+        <%= helpers.button_to t("nav.sign_out"), destroy_user_session_path, method: :delete, class: "text-sm text-white/60 hover:text-white" %>
       </div>
     </aside>
 

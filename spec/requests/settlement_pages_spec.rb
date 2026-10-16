@@ -5,7 +5,7 @@ RSpec.describe "Settlement pages", type: :request do
   let(:merchant) { create(:merchant, reference: "pages_co", live_on: Date.new(2022, 9, 1)) }
 
   before do
-    post session_path, params: { email_address: user.email_address, password: "password123456" }
+    post user_session_path, params: { user: { email: user.email, password: "password123456" } }
   end
 
   it "renders disbursements index and show" do

@@ -14,6 +14,7 @@ Planning: [docs/planning.md](docs/planning.md).
 - Solid Queue (1 process, 1 thread)
 - Hotwire + Tailwind (Railway-inspired dark UI)
 - RSpec, FactoryBot, SimpleCov
+- Devise (email and password only)
 - Mission Control for job inspection
 
 ## Setup
@@ -21,7 +22,7 @@ Planning: [docs/planning.md](docs/planning.md).
 ```bash
 docker compose up -d
 bundle install
-bin/rails db:prepare db:seed
+bin/rails db:prepare
 bin/dev
 ```
 
@@ -31,12 +32,13 @@ In another terminal:
 bin/jobs
 ```
 
-Default local operator:
+There is no default operator. `users` stays empty until you seed one:
 
-- email: `operator@lagom.local`
-- password: `lagom-operator-password`
+```bash
+OPERATOR_EMAIL=you@example.com OPERATOR_PASSWORD='choose-a-password' bin/rails db:seed
+```
 
-Override with `OPERATOR_EMAIL` and `OPERATOR_PASSWORD`. Staging and production require those variables.
+Sign in with that email and password. The same two variables are required in staging and production; seed raises there when either one is missing.
 
 Postgres defaults to `localhost:5434` so it does not collide with other local databases.
 
@@ -120,4 +122,4 @@ Run web + worker processes from the `Procfile`. Release runs `db:migrate db:seed
 
 - No manual order form; new orders arrive through CSV.
 - No CORS setup; there is no separate frontend origin.
-- No public signup; one operator account owns the console.
+- No public signup, password recovery, confirmation, or account lock. One operator account owns the console.

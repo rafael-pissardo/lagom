@@ -43,14 +43,14 @@ Não há N×N no domínio. “Exactly once” é `orders.disbursement_id`, não 
 - `orders` — `id` uuid gerado. O id do CSV (12 hex no sample, não é uuid) fica em `external_id` único. `merchant_id`, `ordered_on` date, `amount_cents`, `commission_cents`, `disbursement_id` nulo até pagar. A coluna `created_at` do CSV entra em `ordered_on`. `t.timestamps` segue com `created_at` / `updated_at` para a linha no banco.
 - `disbursements` — uuid, `merchant_id`, `disbursed_on`, `reference` único (`{reference}{YYYYMMDD}`, só letras, números e o underscore que o reference do merchant já tem), `gross_cents`, `commission_cents`, `net_cents`. Único `(merchant_id, disbursed_on)`.
 - `monthly_fees` — uuid, `merchant_id`, `year`, `month`, `commissions_cents`, `charged_cents`. Único `(merchant_id, year, month)`. Linha com `charged_cents = 0` significa “mês avaliado, nada cobrado” e segura a idempotência. O relatório conta só `charged_cents > 0`.
-- `users` — operador do gerador de autenticação do Rails 8. Sem cadastro público.
+- `users` — operador, model `User` com Devise (`database_authenticatable` e `validatable`). Sem cadastro público, sem recuperação de senha, sem confirmação e sem bloqueio.
 - `csv_imports` — status do job (`pending`, `processing`, `succeeded`, `failed`), contadores, erros limitados.
 
 FKs `on_delete: :restrict`. Datas de negócio em UTC (`config.time_zone = "UTC"`).
 
 Indexes, alinhados às validações e às buscas:
 
-- únicos: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `users.email_address`
+- únicos: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `users.email`
 - job: `(orders.merchant_id, ordered_on) WHERE disbursement_id IS NULL`
 - listas: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
 - checks: frequency em `DAILY`/`WEEKLY`, centavos `>= 0`, presença via `null: false`
@@ -113,11 +113,11 @@ Relatório anual lê `disbursements` e `monthly_fees` (milhares de linhas), sín
 - SQL: ActiveRecord e binds. Sem interpolar parâmetro em SQL.
 - XSS: escape padrão, sem `html_safe` / `raw`.
 - CSRF: `protect_from_forgery` do Rails.
-- Sessão do gerador (tabela de sessions), cookie httponly, `same_site: :lax`, `force_ssl` em staging e production.
+- Sessão do Devise no cookie do Rails, httponly, `same_site: :lax`, `force_ssl` em staging e production.
 - CORS: não instalo. Não há outro origin.
 - Rate limit com `rack-attack`: login e POST de import.
 - SSRF: o upload é arquivo, nunca URL vinda do usuário. O CSV oficial entra por host fixo `sequra.github.io`, escrito no código. Sem HTTP para destino informado no form.
-- Senha com `has_secure_password`. Seed do operador só com `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`. Em staging/production, seed sem essas variáveis falha. Sem senha default no repositório.
+- Senha com Devise, só login. Seed do operador só com `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`. Em staging/production, seed sem essas variáveis falha. Sem senha default no repositório.
 - `/jobs` só abre com o operador logado. Sem isso o painel de fila ficaria público.
 
 ## Ambientes e Railway

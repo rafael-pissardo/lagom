@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "CsvImports", type: :request do
   it "enqueues processing and redirects with a notice" do
     user = create(:user)
-    post session_path, params: { email_address: user.email_address, password: "password123456" }
+    post user_session_path, params: { user: { email: user.email, password: "password123456" } }
 
     merchants = fixture_file_upload("merchants.csv", "text/csv")
     orders = fixture_file_upload("orders.csv", "text/csv")
