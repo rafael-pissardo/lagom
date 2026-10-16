@@ -1,0 +1,19 @@
+<div class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+  <% flash.each do |type, message| %>
+    <%= render FlashComponent.new(type: type, message: message) %>
+  <% end %>
+
+  <%= render CardComponent.new(title: t("sessions.new.title")) do %>
+    <%= form_with url: session_path, class: "space-y-4" do |form| %>
+      <div class="space-y-2">
+        <%= form.label :email_address, t("labels.email_address"), class: "block text-sm text-white/70" %>
+        <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm outline-none ring-lagom-accent focus:ring-2" %>
+      </div>
+      <div class="space-y-2">
+        <%= form.label :password, t("labels.password"), class: "block text-sm text-white/70" %>
+        <%= form.password_field :password, required: true, autocomplete: "current-password", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm outline-none ring-lagom-accent focus:ring-2" %>
+      </div>
+      <%= form.submit t("sessions.new.submit"), class: "inline-flex w-full items-center justify-center rounded-lg bg-lagom-accent px-4 py-2 text-sm font-medium text-lagom-bg hover:bg-[#b8a8f5]" %>
+    <% end %>
+  <% end %>
+</div>

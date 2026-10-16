@@ -1,0 +1,19 @@
+<%= render AppShellComponent.new do %>
+  <%= render PageHeaderComponent.new(title: t("merchants.index.title")) %>
+
+  <% if @merchants.empty? %>
+    <%= render EmptyStateComponent.new(message: t("merchants.index.empty")) %>
+  <% else %>
+    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.email"), t("labels.live_on"), t("labels.frequency"), t("labels.minimum_monthly_fee")]) do %>
+      <% @merchants.each do |merchant| %>
+        <tr class="hover:bg-white/5">
+          <td class="px-4 py-3"><%= link_to merchant.reference, merchant_path(merchant), class: "text-lagom-accent hover:underline" %></td>
+          <td class="px-4 py-3 text-white/70"><%= merchant.email %></td>
+          <td class="px-4 py-3 font-mono text-white/70"><%= merchant.live_on %></td>
+          <td class="px-4 py-3"><%= render BadgeComponent.new(text: merchant.disbursement_frequency, variant: "accent") %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: merchant.minimum_monthly_fee_cents) %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

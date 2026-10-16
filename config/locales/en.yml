@@ -1,31 +1,100 @@
-# Files in the config/locales directory are used for internationalization and
-# are automatically loaded by Rails. If you want to use locales other than
-# English, add the necessary files in this directory.
-#
-# To use the locales, use `I18n.t`:
-#
-#     I18n.t "hello"
-#
-# In views, this is aliased to just `t`:
-#
-#     <%= t("hello") %>
-#
-# To use a different locale, set it with `I18n.locale`:
-#
-#     I18n.locale = :es
-#
-# This would use the information in config/locales/es.yml.
-#
-# To learn more about the API, please read the Rails Internationalization guide
-# at https://guides.rubyonrails.org/i18n.html.
-#
-# Be aware that YAML interprets the following case-insensitive strings as
-# booleans: `true`, `false`, `on`, `off`, `yes`, `no`. Therefore, these strings
-# must be quoted to be interpreted as strings. For example:
-#
-#     en:
-#       "yes": yup
-#       enabled: "ON"
-
 en:
-  hello: "Hello world"
+  app:
+    name: "Lagom"
+    tagline: "Merchant Settlement Engine"
+  nav:
+    merchants: "Merchants"
+    disbursements: "Disbursements"
+    monthly_fees: "Monthly fees"
+    yearly_report: "Yearly report"
+    imports: "CSV imports"
+    jobs: "Jobs"
+    sign_out: "Sign out"
+  sessions:
+    new:
+      title: "Sign in"
+      submit: "Sign in"
+    create:
+      notice: "Signed in successfully."
+      alert: "Invalid email or password."
+    destroy:
+      notice: "Signed out."
+  merchants:
+    index:
+      title: "Merchants"
+      empty: "No merchants yet. Import the SeQura CSV files to get started."
+    show:
+      title: "Merchant"
+      orders: "Orders"
+      disbursements: "Disbursements"
+      monthly_fees: "Monthly fees"
+  orders:
+    index:
+      title: "Orders"
+      empty: "No orders for this merchant."
+  disbursements:
+    index:
+      title: "Disbursements"
+      empty: "No disbursements yet."
+    show:
+      title: "Disbursement"
+      orders: "Included orders"
+  monthly_fees:
+    index:
+      title: "Monthly fees"
+      empty: "No monthly fees yet."
+  reports:
+    yearly:
+      title: "Yearly report"
+      empty: "No settlement data yet."
+      year: "Year"
+      disbursements: "Number of disbursements"
+      amount_disbursed: "Amount disbursed to merchants"
+      order_fees: "Amount of order fees"
+      monthly_fees_count: "Number of monthly fees charged"
+      monthly_fees_amount: "Amount of monthly fees charged"
+  csv_imports:
+    index:
+      title: "CSV imports"
+      empty: "No imports yet."
+      new: "New import"
+    new:
+      title: "Import merchants and orders"
+      merchants_file: "Merchants CSV"
+      orders_file: "Orders CSV"
+      submit: "Start import"
+    create:
+      notice: "Import accepted. We are processing the files."
+      alert: "Could not start the import."
+    show:
+      title: "Import status"
+      processing: "Processing…"
+      succeeded: "Import finished successfully."
+      failed: "Import failed."
+  flash:
+    processing: "We are processing your request."
+  labels:
+    reference: "Reference"
+    email: "Email"
+    live_on: "Live on"
+    frequency: "Frequency"
+    minimum_monthly_fee: "Minimum monthly fee"
+    ordered_on: "Ordered on"
+    amount: "Amount"
+    commission: "Commission"
+    net: "Net"
+    gross: "Gross"
+    disbursed_on: "Disbursed on"
+    year: "Year"
+    month: "Month"
+    charged: "Charged"
+    status: "Status"
+    password: "Password"
+    email_address: "Email address"
+  activerecord:
+    errors:
+      models:
+        order:
+          attributes:
+            ordered_on:
+              before_live_on: "cannot be before the merchant live_on date"

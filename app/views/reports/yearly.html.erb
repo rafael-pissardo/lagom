@@ -1,0 +1,27 @@
+<%= render AppShellComponent.new do %>
+  <%= render PageHeaderComponent.new(title: t("reports.yearly.title")) %>
+
+  <% if @rows.empty? %>
+    <%= render EmptyStateComponent.new(message: t("reports.yearly.empty")) %>
+  <% else %>
+    <%= render DataTableComponent.new(headers: [
+      t("reports.yearly.year"),
+      t("reports.yearly.disbursements"),
+      t("reports.yearly.amount_disbursed"),
+      t("reports.yearly.order_fees"),
+      t("reports.yearly.monthly_fees_count"),
+      t("reports.yearly.monthly_fees_amount")
+    ]) do %>
+      <% @rows.each do |row| %>
+        <tr class="hover:bg-white/5">
+          <td class="px-4 py-3 font-mono"><%= row.year %></td>
+          <td class="px-4 py-3 font-mono"><%= row.disbursements_count %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: row.amount_disbursed_cents) %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: row.order_fees_cents) %></td>
+          <td class="px-4 py-3 font-mono"><%= row.monthly_fees_count %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: row.monthly_fees_amount_cents) %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

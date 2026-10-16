@@ -1,0 +1,28 @@
+<div class="min-h-screen bg-lagom-bg text-lagom-text">
+  <div class="mx-auto flex min-h-screen max-w-7xl">
+    <aside class="hidden w-64 shrink-0 border-r border-white/10 bg-lagom-surface/80 p-6 lg:block">
+      <div class="mb-10">
+        <p class="text-lg font-semibold"><%= t("app.name") %></p>
+        <p class="text-xs text-white/50"><%= t("app.tagline") %></p>
+      </div>
+      <nav class="space-y-2 text-sm">
+        <%= helpers.link_to t("nav.merchants"), merchants_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+        <%= helpers.link_to t("nav.disbursements"), disbursements_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+        <%= helpers.link_to t("nav.monthly_fees"), monthly_fees_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+        <%= helpers.link_to t("nav.yearly_report"), reports_yearly_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+        <%= helpers.link_to t("nav.imports"), csv_imports_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+        <%= helpers.link_to t("nav.jobs"), "/jobs", class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
+      </nav>
+      <div class="mt-10">
+        <%= helpers.button_to t("nav.sign_out"), session_path, method: :delete, class: "text-sm text-white/60 hover:text-white" %>
+      </div>
+    </aside>
+
+    <main class="flex-1 p-6 lg:p-10">
+      <% helpers.flash.each do |type, message| %>
+        <%= render FlashComponent.new(type: type, message: message) %>
+      <% end %>
+      <%= content %>
+    </main>
+  </div>
+</div>

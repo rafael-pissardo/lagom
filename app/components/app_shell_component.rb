@@ -1,0 +1,2 @@
+class AppShellComponent < ApplicationComponent
+end

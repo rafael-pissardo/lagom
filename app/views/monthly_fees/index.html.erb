@@ -1,0 +1,22 @@
+<%= render AppShellComponent.new do %>
+  <%= render PageHeaderComponent.new(title: t("monthly_fees.index.title")) %>
+
+  <% if @monthly_fees.empty? %>
+    <%= render EmptyStateComponent.new(message: t("monthly_fees.index.empty")) %>
+  <% else %>
+    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.year"), t("labels.month"), t("labels.commission"), t("labels.charged")]) do %>
+      <% @monthly_fees.each do |fee| %>
+        <tr class="hover:bg-white/5">
+          <td class="px-4 py-3"><%= fee.merchant.reference %></td>
+          <td class="px-4 py-3 font-mono"><%= fee.year %></td>
+          <td class="px-4 py-3 font-mono"><%= fee.month %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: fee.commissions_cents) %></td>
+          <td class="px-4 py-3">
+            <%= render MoneyComponent.new(cents: fee.charged_cents) %>
+            <%= render BadgeComponent.new(text: fee.charged_cents.positive? ? "charged" : "zero", variant: fee.charged_cents.positive? ? "warning" : "default") %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

@@ -1,0 +1,19 @@
+<%= render AppShellComponent.new do %>
+  <%= render PageHeaderComponent.new(title: t("disbursements.index.title")) %>
+
+  <% if @disbursements.empty? %>
+    <%= render EmptyStateComponent.new(message: t("disbursements.index.empty")) %>
+  <% else %>
+    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.disbursed_on"), t("labels.gross"), t("labels.commission"), t("labels.net")]) do %>
+      <% @disbursements.each do |disbursement| %>
+        <tr class="hover:bg-white/5">
+          <td class="px-4 py-3"><%= link_to disbursement.reference, disbursement_path(disbursement), class: "text-lagom-accent hover:underline" %></td>
+          <td class="px-4 py-3 font-mono"><%= disbursement.disbursed_on %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.gross_cents) %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.commission_cents) %></td>
+          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.net_cents) %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

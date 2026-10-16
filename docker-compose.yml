@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lagom
+      POSTGRES_PASSWORD: lagom
+      POSTGRES_DB: lagom_development
+    ports:
+      - "5434:5432"
+    volumes:
+      - lagom_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lagom -d lagom_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  lagom_postgres:

@@ -1,0 +1,20 @@
+<%= render AppShellComponent.new do %>
+  <%= render PageHeaderComponent.new(title: t("csv_imports.index.title")) do %>
+    <%= render ButtonComponent.new(text: t("csv_imports.index.new"), href: new_csv_import_path) %>
+  <% end %>
+
+  <% if @csv_imports.empty? %>
+    <%= render EmptyStateComponent.new(message: t("csv_imports.index.empty")) %>
+  <% else %>
+    <%= render DataTableComponent.new(headers: [t("labels.status"), "Merchants", "Orders", "Created"]) do %>
+      <% @csv_imports.each do |csv_import| %>
+        <tr class="hover:bg-white/5">
+          <td class="px-4 py-3"><%= link_to csv_import.status, csv_import_path(csv_import), class: "text-lagom-accent hover:underline" %></td>
+          <td class="px-4 py-3 font-mono"><%= csv_import.merchants_imported_count %></td>
+          <td class="px-4 py-3 font-mono"><%= csv_import.orders_imported_count %></td>
+          <td class="px-4 py-3 font-mono text-white/60"><%= l(csv_import.created_at, format: :short) %></td>
+        </tr>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>
