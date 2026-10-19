@@ -16,12 +16,22 @@ RSpec.describe "Index pagination", type: :request do
     expect(response.body).to include("page-00")
     expect(response.body).not_to include("page-10")
     expect(response.body).to include("page=2")
+    expect(summary).to eq("Showing 1–10 of 11 · 10 per page")
 
     get merchants_path(page: 2)
 
     expect(table_rows).to eq(1)
     expect(response.body).to include("page-10")
     expect(response.body).not_to include("page-00")
+    expect(summary).to eq("Showing 11 of 11 · 10 per page")
+  end
+
+  it "shows the total and page size even when everything fits on one page" do
+    3.times { |n| create(:merchant, reference: "fits-#{n}") }
+
+    get merchants_path
+
+    expect(summary).to eq("Showing 1–3 of 3 · 10 per page")
   end
 
   it "shows 10 orders per page" do
@@ -97,5 +107,9 @@ RSpec.describe "Index pagination", type: :request do
 
   def table_rows
     Nokogiri::HTML(response.body).css("tbody tr").size
+  end
+
+  def summary
+    Nokogiri::HTML(response.body).at_css("[data-testid=pagination-summary]")&.text&.squish
   end
 end

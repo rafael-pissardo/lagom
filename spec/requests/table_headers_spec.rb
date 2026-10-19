@@ -49,6 +49,8 @@ RSpec.describe "Table headers", type: :request do
   end
 
   def headers
-    Nokogiri::HTML(response.body).css("thead th").map { |header| header.text.strip }
+    Nokogiri::HTML(response.body).css("thead th").map do |header|
+      header.at_css("[data-sort-label]")&.text&.strip || header.text.strip
+    end
   end
 end

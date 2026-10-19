@@ -13,7 +13,7 @@
     <% if @disbursements.empty? %>
       <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("disbursements.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("tables.disbursement"), t("tables.disbursement_date"), t("tables.orders_total"), t("tables.order_fee"), t("tables.amount_disbursed")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.disbursement"), t("tables.disbursement_date"), t("tables.orders_total"), t("tables.order_fee"), t("tables.amount_disbursed")], sorts: %w[reference disbursed_on gross commission net], sort: @sort) do %>
         <% @disbursements.each do |disbursement| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3"><%= link_to disbursement.reference, disbursement_path(disbursement), class: "text-lagom-accent hover:underline" %></td>
