@@ -4,7 +4,7 @@
   <% end %>
 
   <div class="mb-8 grid gap-4 md:grid-cols-3">
-    <%= render StatComponent.new(label: t("labels.live_on"), value: @merchant.live_on.to_s) %>
+    <%= render StatComponent.new(label: t("labels.live_on"), value: l(@merchant.live_on)) %>
     <%= render StatComponent.new(label: t("labels.frequency"), value: @merchant.disbursement_frequency_before_type_cast) %>
     <%= render StatComponent.new(label: t("labels.minimum_monthly_fee"), value: Finance::Amount.format_euros(@merchant.minimum_monthly_fee_cents)) %>
   </div>
@@ -14,11 +14,11 @@
     <% if disbursements.empty? %>
       <%= render EmptyStateComponent.new(message: t("disbursements.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.disbursed_on"), t("labels.gross"), t("labels.commission"), t("labels.net")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.disbursement"), t("tables.disbursement_date"), t("tables.orders_total"), t("tables.order_fee"), t("tables.amount_disbursed")]) do %>
         <% disbursements.each do |disbursement| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3"><%= link_to disbursement.reference, disbursement_path(disbursement), class: "text-lagom-accent hover:underline" %></td>
-            <td class="px-4 py-3 font-mono"><%= disbursement.disbursed_on %></td>
+            <td class="px-4 py-3 font-mono"><%= l(disbursement.disbursed_on) %></td>
             <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.gross_cents) %></td>
             <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.commission_cents) %></td>
             <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.net_cents) %></td>

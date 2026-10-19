@@ -2,7 +2,7 @@
   <%= render PageHeaderComponent.new(title: t("csv_imports.new.title")) %>
 
   <%= render CardComponent.new do %>
-    <%= form_with model: @csv_import, class: "space-y-6", multipart: true, data: { controller: "csv-import-form" } do |form| %>
+    <%= form_with model: @csv_import, class: "space-y-6", multipart: true, data: { controller: "csv-import-form", action: "submit->csv-import-form#start" } do |form| %>
       <div class="space-y-2">
         <%= form.label :kind, t("csv_imports.new.kind"), class: "block text-sm text-white/70" %>
         <%= form.select :kind,
@@ -29,10 +29,16 @@
           <p class="text-sm text-rose-300"><%= @csv_import.errors[:file].to_sentence %></p>
         <% end %>
       </div>
-      <%= form.submit t("csv_imports.new.submit"),
+      <%= form.button type: "submit",
             disabled: true,
-            class: "inline-flex items-center justify-center rounded-lg bg-lagom-accent px-4 py-2 text-sm font-medium text-lagom-bg hover:bg-[#b8a8f5] disabled:cursor-not-allowed disabled:opacity-40",
-            data: { csv_import_form_target: "submit" } %>
+            class: "inline-flex items-center justify-center gap-2 rounded-lg bg-lagom-accent px-4 py-2 text-sm font-medium text-lagom-bg hover:bg-[#b8a8f5] disabled:cursor-not-allowed disabled:opacity-40",
+            data: { csv_import_form_target: "submit" } do %>
+        <svg data-csv-import-form-target="spinner" class="hidden size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+        </svg>
+        <%= t("csv_imports.new.submit") %>
+      <% end %>
     <% end %>
   <% end %>
 <% end %>

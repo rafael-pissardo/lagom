@@ -9,6 +9,7 @@ class Order < ApplicationRecord
   validate :ordered_on_not_before_live_on
 
   scope :undisbursed, -> { where(disbursement_id: nil) }
+  scope :search, ->(term) { where("orders.external_id ILIKE ?", "%#{sanitize_sql_like(term)}%") }
   scope :ordered_on_or_before, ->(date) { where(ordered_on: ..date) }
   scope :ordered_on_or_after, ->(date) { where(ordered_on: date..) }
 

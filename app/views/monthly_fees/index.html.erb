@@ -1,22 +1,40 @@
 <%= render AppShellComponent.new do %>
   <%= render PageHeaderComponent.new(title: t("monthly_fees.index.title")) %>
 
-  <% if @monthly_fees.empty? %>
-    <%= render EmptyStateComponent.new(message: t("monthly_fees.index.empty")) %>
-  <% else %>
-    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.year"), t("labels.month"), t("labels.commission"), t("labels.charged")]) do %>
-      <% @monthly_fees.each do |fee| %>
-        <tr class="hover:bg-white/5">
-          <td class="px-4 py-3"><%= fee.merchant.reference %></td>
-          <td class="px-4 py-3 font-mono"><%= fee.year %></td>
-          <td class="px-4 py-3 font-mono"><%= fee.month %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: fee.commissions_cents) %></td>
-          <td class="px-4 py-3">
-            <%= render MoneyComponent.new(cents: fee.charged_cents) %>
-            <%= render BadgeComponent.new(text: fee.charged_cents.positive? ? "charged" : "zero", variant: fee.charged_cents.positive? ? "warning" : "default") %>
-          </td>
-        </tr>
+  <% filtering = filtering?(:q, :month, :charged) %>
+  <% if filtering || @monthly_fees.any? %>
+    <%= render FilterBarComponent.new(url: monthly_fees_path) do %>
+      <%= render FilterFieldComponent.new(name: :q, label: t("filters.merchant"), value: params[:q]) %>
+      <%= render FilterFieldComponent.new(name: :month, label: t("filters.month"), type: :month, value: params[:month]) %>
+      <%= render FilterFieldComponent.new(
+            name: :charged,
+            label: t("tables.monthly_fee"),
+            type: :select,
+            value: params[:charged],
+            options: [ [ t("filters.charged"), "charged" ], [ t("filters.zero"), "zero" ] ]
+          ) %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_frame_tag "results", target: "_top" do %>
+    <% if @monthly_fees.empty? %>
+      <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("monthly_fees.index.empty")) %>
+    <% else %>
+      <%= render DataTableComponent.new(headers: [t("tables.merchant"), t("tables.year"), t("tables.month"), t("tables.order_fees"), t("tables.monthly_fee")]) do %>
+        <% @monthly_fees.each do |fee| %>
+          <tr class="hover:bg-white/5">
+            <td class="px-4 py-3"><%= fee.merchant.reference %></td>
+            <td class="px-4 py-3 font-mono"><%= fee.year %></td>
+            <td class="px-4 py-3 font-mono"><%= fee.month %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: fee.commissions_cents) %></td>
+            <td class="px-4 py-3">
+              <%= render MoneyComponent.new(cents: fee.charged_cents) %>
+              <%= render BadgeComponent.new(text: fee.charged_cents.positive? ? "charged" : "zero", variant: fee.charged_cents.positive? ? "warning" : "default") %>
+            </td>
+          </tr>
+        <% end %>
       <% end %>
+      <%= render "shared/pagination", pagy: @pagy %>
     <% end %>
   <% end %>
 <% end %>
