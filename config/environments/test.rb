@@ -43,6 +43,7 @@ Rails.application.configure do
   config.active_support.deprecation = :stderr
 
   config.active_job.queue_adapter = :test
+  config.mission_control.jobs.adapters = [ :solid_queue ]
   config.i18n.raise_on_missing_translations = true
 
   # Annotate rendered view with file names.

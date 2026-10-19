@@ -33,6 +33,9 @@ module Lagom
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
+    config.mission_control.jobs.base_controller_class = "ApplicationController"
+    config.mission_control.jobs.http_basic_auth_enabled = false
+
     config.time_zone = "UTC"
     config.i18n.default_locale = :en
     config.i18n.available_locales = [ :en ]
