@@ -13,10 +13,34 @@ class ImportCsv::Orders
 
   def initialize(merchant_cache:)
     @merchant_cache = merchant_cache
+    @checked_orders = []
   end
 
   def prepare(row, line_number)
-    attributes(row, line_number)
+    attrs = attributes(row, line_number)
+    @checked_orders << [ line_number, row.fetch("merchant_reference").strip, attrs.fetch(:ordered_on) ]
+    attrs
+  end
+
+  def finish_references
+    []
+  end
+
+  def guard_concurrent_changes!
+    return [] if @checked_orders.empty?
+
+    merchant_cache.lock_existing(
+      ids: [],
+      references: @checked_orders.map { |_line, reference, _ordered_on| reference }
+    )
+    @checked_orders.each_with_object([]) do |(line_number, reference, ordered_on), found|
+      merchant = merchant_cache.fetch(reference)
+      raise ImportCsv::RowError.new(line_number, "merchant_reference", "is unknown") if merchant.nil?
+
+      ensure_live_on!(merchant, ordered_on, line_number)
+    rescue ImportCsv::RowError => error
+      found << { "line" => error.line, "column" => error.column, "message" => error.message }
+    end
   end
 
   def attributes(row, line_number)
@@ -40,7 +64,12 @@ class ImportCsv::Orders
   def upsert(rows)
     return if rows.empty?
 
-    Order.upsert_all(last_row_per(rows, :external_id), unique_by: :external_id, update_only: UPDATE_COLUMNS)
+    Order.upsert_all(
+      last_row_per(rows, :external_id),
+      unique_by: :external_id,
+      update_only: UPDATE_COLUMNS,
+      returning: false
+    )
   end
 
   private

@@ -32,10 +32,17 @@ class ImportCsv
 
   def call
     mark_processing
+    validate_file
+    if errors.any?
+      finish_failure
+      return
+    end
 
     ActiveRecord::Base.transaction(requires_new: true) do
-      import_file
+      errors.concat(strategy.guard_concurrent_changes!)
       raise Rejected if errors.any?
+
+      write_file
     end
 
     finish_success
@@ -63,20 +70,19 @@ class ImportCsv
     )
   end
 
-  def import_file
-    Bucket.open(csv_import.object_key) do |io|
-      read_rows(io)
-      raise Rejected if errors.any?
+  def validate_file
+    Bucket.open(csv_import.object_key) { |io| read_rows(io) }
+  end
 
-      io.rewind
-      write_rows(io)
-    end
+  def write_file
+    Bucket.open(csv_import.object_key) { |io| write_rows(io) }
   end
 
   def read_rows(io)
     each_batch(io) do |batch|
       batch.each { |row, line_number| prepare_row(row, line_number) }
     end
+    errors.concat(strategy.finish_references)
   end
 
   def write_rows(io)
@@ -102,7 +108,7 @@ class ImportCsv
   end
 
   def merchant_cache
-    @merchant_cache ||= MerchantCache.new
+    @merchant_cache ||= MerchantCache.new(batch_size: self.class.batch_size)
   end
 
   def finish_success
