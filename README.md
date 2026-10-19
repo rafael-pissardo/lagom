@@ -41,9 +41,19 @@ bin/jobs
 
 Postgres defaults to `localhost:5434` so it does not collide with other local databases.
 
+`docker compose up -d` also starts a local S3-compatible bucket (MinIO) on `localhost:9000` and creates a bucket named `lagom`. In development, these variables fall back to that local bucket when they are unset:
+
+- `AWS_ACCESS_KEY_ID=lagom`
+- `AWS_SECRET_ACCESS_KEY=lagom-secret`
+- `AWS_DEFAULT_REGION=us-east-1`
+- `AWS_ENDPOINT_URL=http://localhost:9000`
+- `AWS_S3_BUCKET_NAME=lagom`
+
+`CSV_IMPORT_BATCH_SIZE` defaults to `500`.
+
 ## CSV import
 
-Upload the official SeQura `merchants.csv` and `orders.csv` (`;` separator) from **CSV imports**. The request returns immediately; Solid Queue processes the files and then backfills disbursements and monthly fees.
+From **CSV imports**, choose Merchant or Orders and upload one `;`-separated CSV. The file is stored in the bucket as `{kind}-{timestamp}.csv` before the import record is created. The request returns immediately with status `processing`. Solid Queue reads the file in batches and, when the file has no row errors, backfills disbursements and monthly fees. A row error rolls the whole file back and the import page offers a plain-text download of the line and column.
 
 ## Settlement rules implemented
 
@@ -99,8 +109,13 @@ Create two environments (staging, production), attach Postgres, set:
 - `DATABASE_URL`
 - `SECRET_KEY_BASE`
 - `APP_HOST`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_DEFAULT_REGION`
+- `AWS_ENDPOINT_URL`
+- `AWS_S3_BUCKET_NAME`
 
-`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` are optional. When they are absent, seed uses `operator@lagom.local` and `lagom-operator-password`.
+`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` are optional. When they are absent, seed uses `operator@lagom.local` and `lagom-operator-password`. `CSV_IMPORT_BATCH_SIZE` is optional and defaults to 500.
 
 Run web + worker processes from the `Procfile`. The Railway pre-deploy command and the production container both run `db:prepare db:seed` before the server starts, including when the database already exists.
 
@@ -108,7 +123,6 @@ Run web + worker processes from the `Procfile`. The Railway pre-deploy command a
 
 - **P0.** No logging service such as Datadog. Server logs are the workaround today.
 - **P1.** Railway Hobby will not absorb large data or user load. Measure infra behaviour next.
-- **P2.** CSV files are not stored in a bucket, so file-level traceability is lost after processing.
 
 ## Decisions and AI usage
 

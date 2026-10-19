@@ -1,7 +1,10 @@
-<div class="mb-6 grid gap-4 md:grid-cols-3">
+<div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <%= render StatComponent.new(label: t("labels.status"), value: csv_import.status) %>
-  <%= render StatComponent.new(label: "Merchants imported", value: csv_import.merchants_imported_count.to_s) %>
-  <%= render StatComponent.new(label: "Orders imported", value: csv_import.orders_imported_count.to_s) %>
+  <% if csv_import.kind.present? %>
+    <%= render StatComponent.new(label: t("labels.kind"), value: t("csv_imports.kinds.#{csv_import.kind}")) %>
+  <% end %>
+  <%= render StatComponent.new(label: t("csv_imports.show.merchants_imported"), value: csv_import.merchants_imported_count.to_s) %>
+  <%= render StatComponent.new(label: t("csv_imports.show.orders_imported"), value: csv_import.orders_imported_count.to_s) %>
 </div>
 
 <% if csv_import.processing? || csv_import.pending? %>
@@ -18,19 +21,14 @@
     <% if csv_import.error_message.present? %>
       <p class="mt-2 font-mono text-xs text-rose-100/80"><%= csv_import.error_message %></p>
     <% end %>
-  <% end %>
-<% end %>
-
-<% if csv_import.error_rows.any? %>
-  <%= render CardComponent.new(title: "Row errors") do %>
-    <%= render DataTableComponent.new(headers: ["File", "Line", "Message"]) do %>
-      <% csv_import.error_rows.each do |error_row| %>
-        <tr>
-          <td class="px-4 py-3"><%= error_row["file"] %></td>
-          <td class="px-4 py-3 font-mono"><%= error_row["line"] %></td>
-          <td class="px-4 py-3 text-white/70"><%= error_row["message"] %></td>
-        </tr>
-      <% end %>
+    <% if csv_import.error_rows.any? %>
+      <div class="mt-4">
+        <%= render ButtonComponent.new(
+              text: t("csv_imports.show.download_errors"),
+              href: errors_csv_import_path(csv_import),
+              variant: "secondary"
+            ) %>
+      </div>
     <% end %>
   <% end %>
 <% end %>

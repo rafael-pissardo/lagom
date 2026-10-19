@@ -54,23 +54,33 @@ en:
       monthly_fees_count: "Number of monthly fees charged"
       monthly_fees_amount: "Amount of monthly fees charged"
   csv_imports:
+    kinds:
+      merchants: "Merchant"
+      orders: "Orders"
     index:
       title: "CSV imports"
       empty: "No imports yet."
       new: "New import"
+      merchants: "Merchants"
+      orders: "Orders"
+      created: "Created"
     new:
-      title: "Import merchants and orders"
-      merchants_file: "Merchants CSV"
-      orders_file: "Orders CSV"
+      title: "Import a CSV"
+      kind: "Import type"
+      kind_prompt: "Choose a type"
+      file: "CSV file"
       submit: "Start import"
     create:
-      notice: "Import accepted. We are processing the files."
+      notice: "Import accepted. The CSV is being processed."
       alert: "Could not start the import."
     show:
       title: "Import status"
       processing: "Processing…"
       succeeded: "Import finished successfully."
       failed: "Import failed."
+      download_errors: "Download errors"
+      merchants_imported: "Merchants imported"
+      orders_imported: "Orders imported"
   flash:
     processing: "We are processing your request."
   labels:
@@ -89,6 +99,7 @@ en:
     month: "Month"
     charged: "Charged"
     status: "Status"
+    kind: "Kind"
     password: "Password"
     email: "Email address"
   devise:
@@ -106,3 +117,10 @@ en:
           attributes:
             ordered_on:
               before_live_on: "cannot be before the merchant live_on date"
+        csv_import:
+          attributes:
+            kind:
+              inclusion: "Choose Merchant or Orders."
+              blank: "Choose Merchant or Orders."
+            file:
+              blank: "Choose a CSV file."

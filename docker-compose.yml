@@ -15,5 +15,18 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: bitnamilegacy/minio:latest
+    environment:
+      MINIO_ROOT_USER: lagom
+      MINIO_ROOT_PASSWORD: lagom-secret
+      MINIO_DEFAULT_BUCKETS: lagom
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - lagom_minio:/bitnami/minio/data
+
 volumes:
   lagom_postgres:
+  lagom_minio:
