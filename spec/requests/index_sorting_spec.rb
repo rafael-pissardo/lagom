@@ -13,7 +13,7 @@ RSpec.describe "Index sorting", type: :request do
 
     get merchants_path
     expect(rows).to eq(%w[alpha zeta])
-    expect(directions("Merchant")).to eq(%w[ASC DESC])
+    expect(directions("Merchant")).to eq(%w[↑ ↓])
     expect(active_sort).to eq("reference-asc")
     expect(sort_link("reference", "desc")["data-turbo-frame"]).to eq("results")
 
