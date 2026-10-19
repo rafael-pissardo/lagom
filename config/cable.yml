@@ -1,11 +1,16 @@
+default: &default
+  adapter: solid_cable
+  polling_interval: 0.1.seconds
+  message_retention: 1.day
+
 development:
-  adapter: async
+  <<: *default
 
 test:
   adapter: test
 
 staging:
-  adapter: async
+  <<: *default
 
 production:
-  adapter: async
+  <<: *default

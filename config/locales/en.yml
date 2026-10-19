@@ -121,8 +121,10 @@ en:
     rows_imported: "Rows imported"
     failed_rows: "Failed rows"
     started: "Started"
-    sort_asc: "ASC"
-    sort_desc: "DESC"
+    sort_asc: "↑"
+    sort_desc: "↓"
+    sort_asc_label: "Sort ascending"
+    sort_desc_label: "Sort descending"
   labels:
     reference: "Reference"
     email: "Email"

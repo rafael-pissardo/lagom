@@ -67,18 +67,23 @@ RSpec.describe "CsvImports", type: :request do
     expect(response.body).to include("Could not start the import")
   end
 
-  it "refreshes import status only while a show is still processing" do
+  it "subscribes to live status updates only while a show is still processing" do
     user = create(:user)
     post user_session_path, params: { user: { email: user.email, password: "password123456" } }
     processing = create(:csv_import, status: "processing")
     finished = create(:csv_import, status: "succeeded")
 
     get csv_import_path(processing)
-    expect(response.body).to include('data-controller="import-status"')
+    source = Nokogiri::HTML(response.body).at_css("turbo-cable-stream-source")
+    expect(source["channel"]).to eq("Turbo::StreamsChannel")
+    expect(Turbo.signed_stream_verifier.verified(source["signed-stream-name"])).to eq(processing.to_gid_param)
+    expect(response.body).to include(%(id="status_csv_import_#{processing.id}"))
+    expect(response.body).not_to include("import-status")
     expect(response.body).not_to include('http-equiv="refresh"')
 
     [ csv_import_path(finished), csv_imports_path, new_csv_import_path ].each do |path|
       get path
+      expect(response.body).not_to include("turbo-cable-stream-source")
       expect(response.body).not_to include("import-status")
       expect(response.body).not_to include('http-equiv="refresh"')
     end

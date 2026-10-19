@@ -1,3 +1,4 @@
+<div id="<%= dom_id(csv_import, :status) %>">
 <div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
   <%= render StatComponent.new(label: t("labels.status"), value: csv_import.status) %>
   <% if csv_import.kind.present? %>
@@ -33,3 +34,4 @@
     <% end %>
   <% end %>
 <% end %>
+</div>

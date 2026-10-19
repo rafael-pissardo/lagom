@@ -43,7 +43,7 @@ class DataTableComponent < ApplicationComponent
       t("tables.sort_#{direction}"),
       sort_url(column, direction),
       class: active ? "text-lagom-accent" : "text-white/35 hover:text-white",
-      aria: { current: (active ? "true" : nil) },
+      aria: { current: (active ? "true" : nil), label: t("tables.sort_#{direction}_label") },
       data: {
         sort: column,
         direction: direction,
