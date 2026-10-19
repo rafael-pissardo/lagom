@@ -25,11 +25,11 @@ class CsvImportsController < ApplicationController
   end
 
   def show
-    @csv_import = CsvImport.find(params[:id])
+    @csv_import = CsvImport.find(id_param)
   end
 
   def errors
-    csv_import = CsvImport.find(params[:id])
+    csv_import = CsvImport.find(id_param)
     return head :not_found unless csv_import.failed? && csv_import.error_rows.any?
 
     send_data csv_import.errors_txt,
@@ -41,15 +41,23 @@ class CsvImportsController < ApplicationController
   private
 
   def kind_param
-    params.dig(:csv_import, :kind).to_s
+    csv_import_params[:kind].to_s
   end
 
   def file_param
-    params.dig(:csv_import, :file)
+    csv_import_params[:file]
+  end
+
+  def csv_import_params
+    @csv_import_params ||= params.fetch(:csv_import) { ActionController::Parameters.new }.permit(:kind, :file)
+  end
+
+  def id_param
+    params.permit(:id)[:id]
   end
 
   def import_ready?
-    known_kind = CsvImport::KINDS.include?(kind_param)
+    known_kind = CsvImport.kinds.key?(kind_param)
     @csv_import.errors.add(:kind, :inclusion) unless known_kind
     @csv_import.errors.add(:file, :blank) if file_param.blank?
     known_kind && file_param.present?

@@ -4,6 +4,12 @@ class DisbursementsController < ApplicationController
   end
 
   def show
-    @disbursement = Disbursement.includes(:merchant, :orders).find(params[:id])
+    @disbursement = Disbursement.includes(:merchant, :orders).find(id_param)
+  end
+
+  private
+
+  def id_param
+    params.permit(:id)[:id]
   end
 end

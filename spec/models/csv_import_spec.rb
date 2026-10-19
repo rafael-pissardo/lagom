@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe CsvImport do
+  it "answers kind predicates from the enum" do
+    expect(build(:csv_import, kind: "merchants")).to be_merchants
+    expect(build(:csv_import, kind: "orders")).to be_orders
+  end
+
   it "exposes status helpers" do
     expect(build(:csv_import, status: "pending")).to be_pending
     expect(build(:csv_import, status: "processing")).to be_processing
