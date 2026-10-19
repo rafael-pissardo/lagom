@@ -11,6 +11,7 @@ gem "tailwindcss-rails"
 gem "bcrypt", "~> 3.1.7"
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 gem "solid_queue"
+gem "solid_cable"
 gem "bootsnap", require: false
 gem "thruster", require: false
 gem "view_component"

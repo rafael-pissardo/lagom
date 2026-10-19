@@ -21,6 +21,28 @@ RSpec.describe CsvImport do
     expect(build(:csv_import, status: "failed")).to be_failed
   end
 
+  it "pushes the rendered status to the import's stream when the status changes" do
+    csv_import = create(:csv_import, status: "processing", kind: "orders")
+
+    expect {
+      csv_import.update!(status: "succeeded", imported_count: 7)
+    }.to have_broadcasted_to(csv_import.to_gid_param).with { |html|
+      doc = Nokogiri::HTML.fragment(html)
+      stream = doc.at_css("turbo-stream")
+      expect(stream["action"]).to eq("replace")
+      expect(stream["target"]).to eq("status_csv_import_#{csv_import.id}")
+      expect(stream.text).to include("succeeded").and include("7").and include("Import finished")
+    }
+  end
+
+  it "does not broadcast when nothing but the counters change" do
+    csv_import = create(:csv_import, status: "processing")
+
+    expect {
+      csv_import.update!(imported_count: 3)
+    }.not_to have_broadcasted_to(csv_import.to_gid_param)
+  end
+
   it "names the stored object with the kind and a UTC timestamp" do
     now = Time.utc(2026, 10, 19, 11, 21, 3, 45_000)
 
