@@ -14,6 +14,7 @@ RSpec.describe "Merchants", type: :request do
     get merchants_path
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("visible_co")
+    expect(response.body).to include("DAILY")
 
     get merchant_path(merchant)
     expect(response).to have_http_status(:ok)

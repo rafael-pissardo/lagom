@@ -61,8 +61,8 @@ en:
       title: "CSV imports"
       empty: "No imports yet."
       new: "New import"
-      merchants: "Merchants"
-      orders: "Orders"
+      imported: "Imported"
+      failed: "Failed"
       created: "Created"
     new:
       title: "Import a CSV"
@@ -79,8 +79,8 @@ en:
       succeeded: "Import finished successfully."
       failed: "Import failed."
       download_errors: "Download errors"
-      merchants_imported: "Merchants imported"
-      orders_imported: "Orders imported"
+      imported: "Imported"
+      failed: "Failed"
   flash:
     processing: "We are processing your request."
   labels:

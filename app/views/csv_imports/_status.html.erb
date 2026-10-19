@@ -3,8 +3,8 @@
   <% if csv_import.kind.present? %>
     <%= render StatComponent.new(label: t("labels.kind"), value: t("csv_imports.kinds.#{csv_import.kind}")) %>
   <% end %>
-  <%= render StatComponent.new(label: t("csv_imports.show.merchants_imported"), value: csv_import.merchants_imported_count.to_s) %>
-  <%= render StatComponent.new(label: t("csv_imports.show.orders_imported"), value: csv_import.orders_imported_count.to_s) %>
+  <%= render StatComponent.new(label: t("csv_imports.show.imported"), value: csv_import.imported_count.to_s) %>
+  <%= render StatComponent.new(label: t("csv_imports.show.failed"), value: csv_import.failed_count.to_s) %>
 </div>
 
 <% if csv_import.processing? || csv_import.pending? %>

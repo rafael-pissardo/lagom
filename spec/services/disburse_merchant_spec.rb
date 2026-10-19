@@ -18,7 +18,7 @@ RSpec.describe DisburseMerchant do
       expect(disbursement.gross_cents).to eq(6_174)
       expect(disbursement.commission_cents).to eq(59)
       expect(disbursement.net_cents).to eq(6_115)
-      expect(order.reload.disbursement).to eq(disbursement)
+      expect(Order.includes(:disbursement).find(order.id).disbursement).to eq(disbursement)
     end
 
     it "locks the merchant and the eligible orders while associating them" do
