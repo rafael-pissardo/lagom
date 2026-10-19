@@ -1,13 +1,22 @@
 class CsvImportsController < ApplicationController
+  SORTS = {
+    "status" => :status,
+    "kind" => :kind,
+    "imported" => :imported_count,
+    "failed" => :failed_count,
+    "created_at" => :created_at
+  }.freeze
+
   def index
     started_on = date_param(:started_on)
 
-    csv_imports = CsvImport.order(created_at: :desc)
+    csv_imports = CsvImport.all
     csv_imports = csv_imports.where(status: params[:status]) if params[:status].present?
     csv_imports = csv_imports.where(kind: params[:kind]) if params[:kind].present?
     csv_imports = csv_imports.where(created_at: started_on.all_day) if started_on
 
-    @pagy, @csv_imports = pagy(:offset, csv_imports)
+    @sort = IndexSort.new(params, columns: SORTS, fallback: { column: "created_at", direction: "desc", order: { created_at: :desc } })
+    @pagy, @csv_imports = pagy(:offset, @sort.apply(csv_imports))
   end
 
   def new

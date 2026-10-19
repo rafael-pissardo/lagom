@@ -28,7 +28,7 @@
     <% if @csv_imports.empty? %>
       <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("csv_imports.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("tables.status"), t("tables.import_type"), t("tables.rows_imported"), t("tables.failed_rows"), t("tables.started")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.status"), t("tables.import_type"), t("tables.rows_imported"), t("tables.failed_rows"), t("tables.started")], sorts: %w[status kind imported failed created_at], sort: @sort) do %>
         <% @csv_imports.each do |csv_import| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3"><%= link_to csv_import.status, csv_import_path(csv_import), class: "text-lagom-accent hover:underline" %></td>

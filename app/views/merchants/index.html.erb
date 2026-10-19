@@ -20,7 +20,7 @@
     <% if @merchants.empty? %>
       <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("merchants.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("tables.merchant"), t("tables.email"), t("tables.live_since"), t("tables.disbursement_frequency"), t("tables.minimum_monthly_fee")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.merchant"), t("tables.email"), t("tables.live_since"), t("tables.disbursement_frequency"), t("tables.minimum_monthly_fee")], sorts: %w[reference email live_on frequency fee], sort: @sort) do %>
         <% @merchants.each do |merchant| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3"><%= link_to merchant.reference, merchant_path(merchant), class: "text-lagom-accent hover:underline" %></td>

@@ -13,7 +13,7 @@
     <% if @orders.empty? %>
       <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("orders.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("tables.order"), t("tables.order_date"), t("tables.order_amount"), t("tables.order_fee")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.order"), t("tables.order_date"), t("tables.order_amount"), t("tables.order_fee")], sorts: %w[external_id ordered_on amount commission], sort: @sort) do %>
         <% @orders.each do |order| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3 font-mono text-white/70"><%= order.external_id %></td>

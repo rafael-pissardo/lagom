@@ -1,5 +1,11 @@
-<% if pagy.pages > 1 %>
-  <div class="mt-6">
+<div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+  <p class="text-sm text-white/60" data-testid="pagination-summary">
+    <% range = pagy.from == pagy.to ? number_with_delimiter(pagy.from) : "#{number_with_delimiter(pagy.from)}–#{number_with_delimiter(pagy.to)}" %>
+    <%= t("pagination.showing", range:, count: number_with_delimiter(pagy.count)) %>
+    <span aria-hidden="true">·</span>
+    <%= t("pagination.per_page", limit: pagy.limit) %>
+  </p>
+  <% if pagy.pages > 1 %>
     <%== pagy.series_nav(anchor_string: 'data-turbo-frame="results" data-turbo-action="advance"') %>
-  </div>
-<% end %>
+  <% end %>
+</div>

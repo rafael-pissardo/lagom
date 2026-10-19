@@ -20,7 +20,7 @@
     <% if @monthly_fees.empty? %>
       <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("monthly_fees.index.empty")) %>
     <% else %>
-      <%= render DataTableComponent.new(headers: [t("tables.merchant"), t("tables.year"), t("tables.month"), t("tables.order_fees"), t("tables.monthly_fee")]) do %>
+      <%= render DataTableComponent.new(headers: [t("tables.merchant"), t("tables.year"), t("tables.month"), t("tables.order_fees"), t("tables.monthly_fee")], sorts: %w[merchant year month commissions charged], sort: @sort) do %>
         <% @monthly_fees.each do |fee| %>
           <tr class="hover:bg-white/5">
             <td class="px-4 py-3"><%= fee.merchant.reference %></td>

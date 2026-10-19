@@ -86,6 +86,9 @@ en:
       failed: "Failed"
   flash:
     processing: "We are processing your request."
+  pagination:
+    showing: "Showing %{range} of %{count}"
+    per_page: "%{limit} per page"
   filters:
     all: "All"
     no_results: "No results match your filters."
@@ -118,6 +121,8 @@ en:
     rows_imported: "Rows imported"
     failed_rows: "Failed rows"
     started: "Started"
+    sort_asc: "ASC"
+    sort_desc: "DESC"
   labels:
     reference: "Reference"
     email: "Email"
