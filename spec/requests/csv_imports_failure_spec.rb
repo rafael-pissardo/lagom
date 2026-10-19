@@ -25,11 +25,19 @@ RSpec.describe "CsvImports failures", type: :request do
       error_rows: [ { "line" => 4, "column" => "amount", "message" => "is negative" } ]
     )
 
+    get csv_import_path(csv_import)
+    expect(response.body).to include('data-turbo="false"')
+
     get errors_csv_import_path(csv_import)
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/plain")
     expect(response.body).to eq("line 4, column amount: is negative\n")
     expect(response.headers["Content-Disposition"]).to include("orders-20261019112103000.csv.errors.txt")
+
+    get errors_csv_import_path(csv_import), headers: { "If-None-Match" => response.headers["ETag"] }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq("line 4, column amount: is negative\n")
   end
 end

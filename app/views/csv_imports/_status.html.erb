@@ -26,7 +26,8 @@
         <%= render ButtonComponent.new(
               text: t("csv_imports.show.download_errors"),
               href: errors_csv_import_path(csv_import),
-              variant: "secondary"
+              variant: "secondary",
+              data: { turbo: false }
             ) %>
       </div>
     <% end %>

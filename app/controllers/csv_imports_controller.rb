@@ -32,6 +32,9 @@ class CsvImportsController < ApplicationController
     csv_import = CsvImport.find(params[:id])
     return head :not_found unless csv_import.failed? && csv_import.error_rows.any?
 
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["ETag"] = %("#{SecureRandom.hex}")
+
     send_data csv_import.errors_txt,
       filename: "#{csv_import.object_key}.errors.txt",
       type: "text/plain",
