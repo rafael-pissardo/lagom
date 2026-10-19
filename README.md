@@ -6,6 +6,8 @@ Built for the [seQura backend coding challenge](https://sequra.github.io/backend
 
 Planning: [docs/planning.md](docs/planning.md).
 
+How the AI was used: [docs/registro-da-construcao.md](docs/registro-da-construcao.md).
+
 ## Stack
 
 - Ruby 4.0.7
