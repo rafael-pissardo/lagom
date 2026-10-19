@@ -6,13 +6,13 @@
   <% if @csv_imports.empty? %>
     <%= render EmptyStateComponent.new(message: t("csv_imports.index.empty")) %>
   <% else %>
-    <%= render DataTableComponent.new(headers: [t("labels.status"), t("labels.kind"), t("csv_imports.index.merchants"), t("csv_imports.index.orders"), t("csv_imports.index.created")]) do %>
+    <%= render DataTableComponent.new(headers: [t("labels.status"), t("labels.kind"), t("csv_imports.index.imported"), t("csv_imports.index.failed"), t("csv_imports.index.created")]) do %>
       <% @csv_imports.each do |csv_import| %>
         <tr class="hover:bg-white/5">
           <td class="px-4 py-3"><%= link_to csv_import.status, csv_import_path(csv_import), class: "text-lagom-accent hover:underline" %></td>
           <td class="px-4 py-3"><%= csv_import.kind.present? ? t("csv_imports.kinds.#{csv_import.kind}") : "—" %></td>
-          <td class="px-4 py-3 font-mono"><%= csv_import.merchants_imported_count %></td>
-          <td class="px-4 py-3 font-mono"><%= csv_import.orders_imported_count %></td>
+          <td class="px-4 py-3 font-mono"><%= csv_import.imported_count %></td>
+          <td class="px-4 py-3 font-mono"><%= csv_import.failed_count %></td>
           <td class="px-4 py-3 font-mono text-white/60"><%= l(csv_import.created_at, format: :short) %></td>
         </tr>
       <% end %>

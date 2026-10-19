@@ -3,7 +3,12 @@ require "rails_helper"
 RSpec.describe Merchant do
   it { is_expected.to validate_presence_of(:reference) }
   it { is_expected.to validate_presence_of(:email) }
-  it { is_expected.to validate_inclusion_of(:disbursement_frequency).in_array(%w[DAILY WEEKLY]) }
+  it {
+    is_expected.to define_enum_for(:disbursement_frequency)
+      .with_values(daily: "DAILY", weekly: "WEEKLY")
+      .backed_by_column_of_type(:string)
+      .validating
+  }
 
   it "exposes frequency helpers" do
     daily = build(:merchant, disbursement_frequency: "DAILY")

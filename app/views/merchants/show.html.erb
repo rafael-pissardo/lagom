@@ -5,7 +5,7 @@
 
   <div class="mb-8 grid gap-4 md:grid-cols-3">
     <%= render StatComponent.new(label: t("labels.live_on"), value: @merchant.live_on.to_s) %>
-    <%= render StatComponent.new(label: t("labels.frequency"), value: @merchant.disbursement_frequency) %>
+    <%= render StatComponent.new(label: t("labels.frequency"), value: @merchant.disbursement_frequency_before_type_cast) %>
     <%= render StatComponent.new(label: t("labels.minimum_monthly_fee"), value: Finance::Amount.format_euros(@merchant.minimum_monthly_fee_cents)) %>
   </div>
 

@@ -53,10 +53,8 @@ class ImportCsv
       started_at: Time.current,
       error_message: nil,
       error_rows: [],
-      merchants_imported_count: 0,
-      orders_imported_count: 0,
-      merchants_failed_count: 0,
-      orders_failed_count: 0
+      imported_count: 0,
+      failed_count: 0
     )
   end
 
@@ -110,25 +108,20 @@ class ImportCsv
       status: "succeeded",
       finished_at: Time.current,
       error_rows: [],
-      merchants_imported_count: csv_import.merchants? ? imported_count : 0,
-      orders_imported_count: csv_import.orders? ? imported_count : 0,
-      merchants_failed_count: 0,
-      orders_failed_count: 0
+      imported_count: imported_count,
+      failed_count: 0
     )
     BackfillSettlementsJob.perform_later
   end
 
   def finish_failure(message = nil)
-    failed_count = errors.size
     csv_import.update!(
       status: "failed",
       finished_at: Time.current,
       error_message: message,
       error_rows: errors,
-      merchants_imported_count: 0,
-      orders_imported_count: 0,
-      merchants_failed_count: csv_import.merchants? ? failed_count : 0,
-      orders_failed_count: csv_import.orders? ? failed_count : 0
+      imported_count: 0,
+      failed_count: errors.size
     )
   end
 end

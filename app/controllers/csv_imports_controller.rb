@@ -8,11 +8,11 @@ class CsvImportsController < ApplicationController
   end
 
   def create
-    @csv_import = CsvImport.new(kind: kind_param, status: "processing")
+    @csv_import = CsvImport.new(kind: csv_import_params[:kind], status: "processing")
     return render_invalid unless import_ready?
 
     @csv_import.object_key = CsvImport.object_key_for(@csv_import.kind)
-    Bucket.put(key: @csv_import.object_key, body: file_param)
+    Bucket.put(key: @csv_import.object_key, body: csv_import_params[:file])
 
     if @csv_import.save
       ImportCsvJob.perform_later(@csv_import.id)
@@ -25,11 +25,11 @@ class CsvImportsController < ApplicationController
   end
 
   def show
-    @csv_import = CsvImport.find(id_param)
+    @csv_import = CsvImport.find(params[:id])
   end
 
   def errors
-    csv_import = CsvImport.find(id_param)
+    csv_import = CsvImport.find(params[:id])
     return head :not_found unless csv_import.failed? && csv_import.error_rows.any?
 
     send_data csv_import.errors_txt,
@@ -40,27 +40,15 @@ class CsvImportsController < ApplicationController
 
   private
 
-  def kind_param
-    csv_import_params[:kind].to_s
-  end
-
-  def file_param
-    csv_import_params[:file]
-  end
-
   def csv_import_params
-    @csv_import_params ||= params.fetch(:csv_import) { ActionController::Parameters.new }.permit(:kind, :file)
-  end
-
-  def id_param
-    params.permit(:id)[:id]
+    params.expect(csv_import: [ :kind, :file ])
   end
 
   def import_ready?
-    known_kind = CsvImport.kinds.key?(kind_param)
+    known_kind = CsvImport.kinds.key?(csv_import_params[:kind].to_s)
     @csv_import.errors.add(:kind, :inclusion) unless known_kind
-    @csv_import.errors.add(:file, :blank) if file_param.blank?
-    known_kind && file_param.present?
+    @csv_import.errors.add(:file, :blank) if csv_import_params[:file].blank?
+    known_kind && csv_import_params[:file].present?
   end
 
   def render_invalid

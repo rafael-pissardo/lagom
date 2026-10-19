@@ -140,7 +140,7 @@ class ImportCsv::Merchants
   end
 
   def ensure_frequency!(frequency, line_number)
-    return if Merchant::FREQUENCIES.include?(frequency)
+    return if Merchant.disbursement_frequencies.value?(frequency)
 
     record = Merchant.new
     record.errors.add(:disbursement_frequency, :inclusion)

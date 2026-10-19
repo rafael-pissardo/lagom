@@ -4,12 +4,6 @@ class MerchantsController < ApplicationController
   end
 
   def show
-    @merchant = Merchant.find(id_param)
-  end
-
-  private
-
-  def id_param
-    params.permit(:id)[:id]
+    @merchant = Merchant.find(params[:id])
   end
 end

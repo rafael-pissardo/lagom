@@ -6,6 +6,14 @@ RSpec.describe CsvImport do
     expect(build(:csv_import, kind: "orders")).to be_orders
   end
 
+  it {
+    is_expected.to define_enum_for(:status)
+      .with_values(pending: "pending", processing: "processing", succeeded: "succeeded", failed: "failed")
+      .backed_by_column_of_type(:string)
+      .with_default(:pending)
+      .validating
+  }
+
   it "exposes status helpers" do
     expect(build(:csv_import, status: "pending")).to be_pending
     expect(build(:csv_import, status: "processing")).to be_processing
