@@ -1,9 +1,11 @@
 module ImportCsv::CsvRow
   private
 
-  def save_record!(record, line_number, columns)
-    record.save!
-  rescue ActiveRecord::RecordInvalid
+  def last_row_per(rows, key)
+    rows.reverse.uniq { |row| row.fetch(key) }.reverse
+  end
+
+  def raise_row_error!(record, line_number, columns)
     attribute = record.errors.attribute_names.find { |name| name != :base } || :base
     column = columns.fetch(attribute, attribute.to_s)
     raise ImportCsv::RowError.new(line_number, column, record.errors.full_messages.first)

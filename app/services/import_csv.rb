@@ -65,21 +65,44 @@ class ImportCsv
 
   def import_file
     Bucket.open(csv_import.object_key) do |io|
-      CsvBatchReader.each(io:, batch_size: self.class.batch_size) do |batch|
-        batch.each { |row, line_number| import_batch_row(row, line_number) }
-      end
+      read_rows(io)
+      raise Rejected if errors.any?
+
+      io.rewind
+      write_rows(io)
     end
   end
 
-  def import_batch_row(row, line_number)
-    strategy.import(row, line_number)
-    @imported_count += 1
+  def read_rows(io)
+    each_batch(io) do |batch|
+      batch.each { |row, line_number| prepare_row(row, line_number) }
+    end
+  end
+
+  def write_rows(io)
+    each_batch(io) do |batch|
+      rows = batch.map { |row, line_number| strategy.attributes(row, line_number) }
+      strategy.upsert(rows)
+      @imported_count += batch.size
+    end
+  end
+
+  def each_batch(io)
+    CsvBatchReader.each(io:, batch_size: self.class.batch_size) { |batch| yield batch }
+  end
+
+  def prepare_row(row, line_number)
+    strategy.prepare(row, line_number)
   rescue RowError => error
     errors << { "line" => error.line, "column" => error.column, "message" => error.message }
   end
 
   def strategy
-    @strategy ||= STRATEGIES.fetch(csv_import.kind) { raise ArgumentError, "unknown import kind" }.new
+    @strategy ||= STRATEGIES.fetch(csv_import.kind) { raise ArgumentError, "unknown import kind" }.new(merchant_cache:)
+  end
+
+  def merchant_cache
+    @merchant_cache ||= MerchantCache.new
   end
 
   def finish_success
