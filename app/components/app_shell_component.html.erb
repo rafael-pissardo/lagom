@@ -2,8 +2,11 @@
   <div class="mx-auto flex min-h-screen max-w-7xl">
     <aside class="hidden w-64 shrink-0 border-r border-white/10 bg-lagom-surface/80 p-6 lg:block">
       <div class="mb-10">
-        <p class="text-lg font-semibold"><%= t("app.name") %></p>
-        <p class="text-xs text-white/50"><%= t("app.tagline") %></p>
+        <div class="flex items-center gap-3">
+          <%= helpers.image_tag "/icon.svg", alt: "", size: "36x36", class: "size-9 shrink-0 rounded-lg" %>
+          <p class="text-lg font-semibold uppercase tracking-[0.18em]"><%= t("app.name") %></p>
+        </div>
+        <p class="mt-2 text-xs text-white/50"><%= t("app.tagline") %></p>
       </div>
       <nav class="space-y-2 text-sm">
         <%= helpers.link_to t("nav.merchants"), merchants_path, class: "block rounded-lg px-3 py-2 hover:bg-white/5" %>
