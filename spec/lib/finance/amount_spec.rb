@@ -24,9 +24,11 @@ RSpec.describe Finance::Amount do
   end
 
   describe ".format_euros" do
-    it "formats cents using the euro symbol" do
+    it "formats cents using the euro symbol and groups thousands" do
       expect(described_class.format_euros(6_174)).to eq("61.74 €")
       expect(described_class.format_euros(0)).to eq("0.00 €")
+      expect(described_class.format_euros(13_193_134)).to eq("131,931.34 €")
+      expect(described_class.format_euros(-6_174)).to eq("-61.74 €")
     end
   end
 end

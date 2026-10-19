@@ -1,19 +1,30 @@
 <%= render AppShellComponent.new do %>
   <%= render PageHeaderComponent.new(title: t("disbursements.index.title")) %>
 
-  <% if @disbursements.empty? %>
-    <%= render EmptyStateComponent.new(message: t("disbursements.index.empty")) %>
-  <% else %>
-    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.disbursed_on"), t("labels.gross"), t("labels.commission"), t("labels.net")]) do %>
-      <% @disbursements.each do |disbursement| %>
-        <tr class="hover:bg-white/5">
-          <td class="px-4 py-3"><%= link_to disbursement.reference, disbursement_path(disbursement), class: "text-lagom-accent hover:underline" %></td>
-          <td class="px-4 py-3 font-mono"><%= disbursement.disbursed_on %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.gross_cents) %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.commission_cents) %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.net_cents) %></td>
-        </tr>
+  <% filtering = filtering?(:q, :disbursed_on) %>
+  <% if filtering || @disbursements.any? %>
+    <%= render FilterBarComponent.new(url: disbursements_path) do %>
+      <%= render FilterFieldComponent.new(name: :q, label: t("filters.merchant"), value: params[:q]) %>
+      <%= render FilterFieldComponent.new(name: :disbursed_on, label: t("tables.disbursement_date"), type: :date, value: params[:disbursed_on]) %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_frame_tag "results", target: "_top" do %>
+    <% if @disbursements.empty? %>
+      <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("disbursements.index.empty")) %>
+    <% else %>
+      <%= render DataTableComponent.new(headers: [t("tables.disbursement"), t("tables.disbursement_date"), t("tables.orders_total"), t("tables.order_fee"), t("tables.amount_disbursed")]) do %>
+        <% @disbursements.each do |disbursement| %>
+          <tr class="hover:bg-white/5">
+            <td class="px-4 py-3"><%= link_to disbursement.reference, disbursement_path(disbursement), class: "text-lagom-accent hover:underline" %></td>
+            <td class="px-4 py-3 font-mono"><%= l(disbursement.disbursed_on) %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.gross_cents) %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.commission_cents) %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: disbursement.net_cents) %></td>
+          </tr>
+        <% end %>
       <% end %>
+      <%= render "shared/pagination", pagy: @pagy %>
     <% end %>
   <% end %>
 <% end %>

@@ -40,3 +40,5 @@ end
 
 gem "devise", "~> 5.0"
 gem "aws-sdk-s3", require: false
+
+gem "pagy", "~> 43.8"

@@ -2,18 +2,18 @@
   <%= render PageHeaderComponent.new(title: @disbursement.reference, subtitle: @disbursement.merchant.reference) %>
 
   <div class="mb-8 grid gap-4 md:grid-cols-4">
-    <%= render StatComponent.new(label: t("labels.disbursed_on"), value: @disbursement.disbursed_on.to_s) %>
+    <%= render StatComponent.new(label: t("labels.disbursed_on"), value: l(@disbursement.disbursed_on)) %>
     <%= render StatComponent.new(label: t("labels.gross"), value: Finance::Amount.format_euros(@disbursement.gross_cents)) %>
     <%= render StatComponent.new(label: t("labels.commission"), value: Finance::Amount.format_euros(@disbursement.commission_cents)) %>
     <%= render StatComponent.new(label: t("labels.net"), value: Finance::Amount.format_euros(@disbursement.net_cents)) %>
   </div>
 
   <%= render CardComponent.new(title: t("disbursements.show.orders")) do %>
-    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.ordered_on"), t("labels.amount"), t("labels.commission")]) do %>
+    <%= render DataTableComponent.new(headers: [t("tables.order"), t("tables.order_date"), t("tables.order_amount"), t("tables.order_fee")]) do %>
       <% @disbursement.orders.order(:ordered_on).each do |order| %>
         <tr class="hover:bg-white/5">
           <td class="px-4 py-3 font-mono text-white/70"><%= order.external_id %></td>
-          <td class="px-4 py-3 font-mono"><%= order.ordered_on %></td>
+          <td class="px-4 py-3 font-mono"><%= l(order.ordered_on) %></td>
           <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.amount_cents) %></td>
           <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.commission_cents) %></td>
         </tr>

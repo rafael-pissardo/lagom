@@ -1,4 +1,11 @@
 en:
+  date:
+    formats:
+      default: "%d/%m/%Y"
+  time:
+    formats:
+      default: "%d/%m/%Y %H:%M"
+      short: "%d/%m/%Y %H:%M"
   app:
     name: "Lagom"
     tagline: "Merchant Settlement Engine"
@@ -8,7 +15,6 @@ en:
     monthly_fees: "Monthly fees"
     yearly_report: "Yearly report"
     imports: "CSV imports"
-    jobs: "Jobs"
     sign_out: "Sign out"
   sessions:
     new:
@@ -61,9 +67,6 @@ en:
       title: "CSV imports"
       empty: "No imports yet."
       new: "New import"
-      imported: "Imported"
-      failed: "Failed"
-      created: "Created"
     new:
       title: "Import a CSV"
       kind: "Import type"
@@ -83,6 +86,38 @@ en:
       failed: "Failed"
   flash:
     processing: "We are processing your request."
+  filters:
+    all: "All"
+    no_results: "No results match your filters."
+    merchant: "Merchant name or email"
+    order: "Order id"
+    month: "Month"
+    charged: "Charged"
+    zero: "Zero"
+    started_on: "Started on"
+  tables:
+    merchant: "Merchant"
+    email: "Email address"
+    live_since: "Live since"
+    disbursement_frequency: "Disbursement frequency"
+    minimum_monthly_fee: "Minimum monthly fee"
+    order: "Order"
+    order_date: "Order date"
+    order_amount: "Order amount"
+    order_fee: "Order fee"
+    disbursement: "Disbursement"
+    disbursement_date: "Disbursement date"
+    orders_total: "Orders total"
+    amount_disbursed: "Amount disbursed"
+    year: "Year"
+    month: "Month"
+    order_fees: "Order fees"
+    monthly_fee: "Monthly fee"
+    status: "Status"
+    import_type: "Import type"
+    rows_imported: "Rows imported"
+    failed_rows: "Failed rows"
+    started: "Started"
   labels:
     reference: "Reference"
     email: "Email"

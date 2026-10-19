@@ -1,6 +1,13 @@
 class CsvImportsController < ApplicationController
   def index
-    @csv_imports = CsvImport.order(created_at: :desc).limit(50)
+    started_on = date_param(:started_on)
+
+    csv_imports = CsvImport.order(created_at: :desc)
+    csv_imports = csv_imports.where(status: params[:status]) if params[:status].present?
+    csv_imports = csv_imports.where(kind: params[:kind]) if params[:kind].present?
+    csv_imports = csv_imports.where(created_at: started_on.all_day) if started_on
+
+    @pagy, @csv_imports = pagy(:offset, csv_imports)
   end
 
   def new

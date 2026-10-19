@@ -28,7 +28,8 @@ module Finance
       absolute = cents.abs
       euros = absolute / CENTS_PER_EURO
       remainder = absolute % CENTS_PER_EURO
-      format("%s%d.%02d €", sign, euros, remainder)
+      grouped = euros.to_s.gsub(/\B(?=(\d{3})+(?!\d))/, ",")
+      format("%s%s.%02d €", sign, grouped, remainder)
     end
   end
 end

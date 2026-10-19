@@ -3,19 +3,43 @@
     <%= render ButtonComponent.new(text: t("csv_imports.index.new"), href: new_csv_import_path) %>
   <% end %>
 
-  <% if @csv_imports.empty? %>
-    <%= render EmptyStateComponent.new(message: t("csv_imports.index.empty")) %>
-  <% else %>
-    <%= render DataTableComponent.new(headers: [t("labels.status"), t("labels.kind"), t("csv_imports.index.imported"), t("csv_imports.index.failed"), t("csv_imports.index.created")]) do %>
-      <% @csv_imports.each do |csv_import| %>
-        <tr class="hover:bg-white/5">
-          <td class="px-4 py-3"><%= link_to csv_import.status, csv_import_path(csv_import), class: "text-lagom-accent hover:underline" %></td>
-          <td class="px-4 py-3"><%= csv_import.kind.present? ? t("csv_imports.kinds.#{csv_import.kind}") : "—" %></td>
-          <td class="px-4 py-3 font-mono"><%= csv_import.imported_count %></td>
-          <td class="px-4 py-3 font-mono"><%= csv_import.failed_count %></td>
-          <td class="px-4 py-3 font-mono text-white/60"><%= l(csv_import.created_at, format: :short) %></td>
-        </tr>
+  <% filtering = filtering?(:status, :kind, :started_on) %>
+  <% if filtering || @csv_imports.any? %>
+    <%= render FilterBarComponent.new(url: csv_imports_path) do %>
+      <%= render FilterFieldComponent.new(
+            name: :status,
+            label: t("tables.status"),
+            type: :select,
+            value: params[:status],
+            options: CsvImport.statuses.keys.map { |status| [ status, status ] }
+          ) %>
+      <%= render FilterFieldComponent.new(
+            name: :kind,
+            label: t("tables.import_type"),
+            type: :select,
+            value: params[:kind],
+            options: CsvImport.kinds.keys.map { |kind| [ t("csv_imports.kinds.#{kind}"), kind ] }
+          ) %>
+      <%= render FilterFieldComponent.new(name: :started_on, label: t("filters.started_on"), type: :date, value: params[:started_on]) %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_frame_tag "results", target: "_top" do %>
+    <% if @csv_imports.empty? %>
+      <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("csv_imports.index.empty")) %>
+    <% else %>
+      <%= render DataTableComponent.new(headers: [t("tables.status"), t("tables.import_type"), t("tables.rows_imported"), t("tables.failed_rows"), t("tables.started")]) do %>
+        <% @csv_imports.each do |csv_import| %>
+          <tr class="hover:bg-white/5">
+            <td class="px-4 py-3"><%= link_to csv_import.status, csv_import_path(csv_import), class: "text-lagom-accent hover:underline" %></td>
+            <td class="px-4 py-3"><%= csv_import.kind.present? ? t("csv_imports.kinds.#{csv_import.kind}") : "—" %></td>
+            <td class="px-4 py-3 font-mono"><%= csv_import.imported_count %></td>
+            <td class="px-4 py-3 font-mono"><%= csv_import.failed_count %></td>
+            <td class="px-4 py-3 font-mono text-white/60"><%= l(csv_import.created_at, format: :short) %></td>
+          </tr>
+        <% end %>
       <% end %>
+      <%= render "shared/pagination", pagy: @pagy %>
     <% end %>
   <% end %>
 <% end %>

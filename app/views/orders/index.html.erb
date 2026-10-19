@@ -1,18 +1,29 @@
 <%= render AppShellComponent.new do %>
   <%= render PageHeaderComponent.new(title: t("orders.index.title"), subtitle: @merchant.reference) %>
 
-  <% if @orders.empty? %>
-    <%= render EmptyStateComponent.new(message: t("orders.index.empty")) %>
-  <% else %>
-    <%= render DataTableComponent.new(headers: [t("labels.reference"), t("labels.ordered_on"), t("labels.amount"), t("labels.commission")]) do %>
-      <% @orders.each do |order| %>
-        <tr class="hover:bg-white/5">
-          <td class="px-4 py-3 font-mono text-white/70"><%= order.external_id %></td>
-          <td class="px-4 py-3 font-mono"><%= order.ordered_on %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.amount_cents) %></td>
-          <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.commission_cents) %></td>
-        </tr>
+  <% filtering = filtering?(:q, :ordered_on) %>
+  <% if filtering || @orders.any? %>
+    <%= render FilterBarComponent.new(url: merchant_orders_path(@merchant)) do %>
+      <%= render FilterFieldComponent.new(name: :q, label: t("filters.order"), value: params[:q]) %>
+      <%= render FilterFieldComponent.new(name: :ordered_on, label: t("tables.order_date"), type: :date, value: params[:ordered_on]) %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_frame_tag "results", target: "_top" do %>
+    <% if @orders.empty? %>
+      <%= render EmptyStateComponent.new(message: filtering ? t("filters.no_results") : t("orders.index.empty")) %>
+    <% else %>
+      <%= render DataTableComponent.new(headers: [t("tables.order"), t("tables.order_date"), t("tables.order_amount"), t("tables.order_fee")]) do %>
+        <% @orders.each do |order| %>
+          <tr class="hover:bg-white/5">
+            <td class="px-4 py-3 font-mono text-white/70"><%= order.external_id %></td>
+            <td class="px-4 py-3 font-mono"><%= l(order.ordered_on) %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.amount_cents) %></td>
+            <td class="px-4 py-3"><%= render MoneyComponent.new(cents: order.commission_cents) %></td>
+          </tr>
+        <% end %>
       <% end %>
+      <%= render "shared/pagination", pagy: @pagy %>
     <% end %>
   <% end %>
 <% end %>

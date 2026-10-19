@@ -10,6 +10,10 @@ class Merchant < ApplicationRecord
   validates :live_on, presence: true
   validates :minimum_monthly_fee_cents, presence: true, numericality: { greater_than_or_equal_to: 0, only_integer: true }
 
+  scope :search, ->(term) {
+    where("merchants.reference ILIKE :term OR merchants.email ILIKE :term", term: "%#{sanitize_sql_like(term)}%")
+  }
+
   def live_on_weekday
     live_on.wday
   end
