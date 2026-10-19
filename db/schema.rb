@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_172000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -44,12 +44,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_140000) do
 
   create_table "csv_imports", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "status", default: "pending", null: false
-    t.string "merchants_filename"
-    t.string "orders_filename"
-    t.integer "merchants_imported_count", default: 0, null: false
-    t.integer "orders_imported_count", default: 0, null: false
-    t.integer "merchants_failed_count", default: 0, null: false
-    t.integer "orders_failed_count", default: 0, null: false
     t.jsonb "error_rows", default: [], null: false
     t.text "error_message"
     t.datetime "started_at"
@@ -58,6 +52,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_140000) do
     t.datetime "updated_at", null: false
     t.string "kind"
     t.string "object_key"
+    t.integer "imported_count", default: 0, null: false
+    t.integer "failed_count", default: 0, null: false
     t.index ["object_key"], name: "index_csv_imports_on_object_key", unique: true, where: "(object_key IS NOT NULL)"
     t.index ["status"], name: "index_csv_imports_on_status"
     t.check_constraint "kind IS NULL OR (kind::text = ANY (ARRAY['merchants'::character varying, 'orders'::character varying]::text[]))", name: "csv_imports_kind_check"

@@ -59,7 +59,8 @@ RSpec.describe ImportCsv do
     csv_import.reload
     expect(csv_import).to be_succeeded
     expect(csv_import).to be_merchants
-    expect(csv_import.merchants_imported_count).to eq(2)
+    expect(csv_import.imported_count).to eq(2)
+    expect(csv_import.failed_count).to eq(0)
     expect(Merchant.find_by!(reference: "other_group").minimum_monthly_fee_cents).to eq(1_500)
   ensure
     previous ? ENV["CSV_IMPORT_BATCH_SIZE"] = previous : ENV.delete("CSV_IMPORT_BATCH_SIZE")
@@ -89,7 +90,8 @@ RSpec.describe ImportCsv do
 
     csv_import.reload
     expect(csv_import).to be_failed
-    expect(csv_import.merchants_imported_count).to eq(0)
+    expect(csv_import.imported_count).to eq(0)
+    expect(csv_import.failed_count).to eq(1)
     expect(Merchant.find_by(reference: "padberg_group")).to be_nil
     expect(csv_import.error_rows).to eq([
       { "line" => 3, "column" => "email", "message" => "is blank" }
@@ -111,7 +113,7 @@ RSpec.describe ImportCsv do
 
     csv_import.reload
     expect(csv_import).to be_succeeded
-    expect(csv_import.orders_imported_count).to eq(1)
+    expect(csv_import.imported_count).to eq(1)
     expect(Order.find_by!(external_id: "e653f3e14bc4").commission_cents).to eq(98)
   end
 
@@ -349,7 +351,7 @@ RSpec.describe ImportCsv do
     expect(Merchant.count).to eq(1)
     expect(merchant.reference).to eq("last_group")
     expect(merchant.email).to eq("last@merchant.test")
-    expect(csv_import.merchants_imported_count).to eq(1)
+    expect(csv_import.imported_count).to eq(1)
   end
 
   it "rolls back when postgres rejects a merchant reference" do

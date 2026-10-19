@@ -44,7 +44,7 @@ RSpec.describe "Settlement pages", type: :request do
     get new_csv_import_path
     expect(response).to have_http_status(:ok)
 
-    csv_import = create(:csv_import, status: "succeeded", merchants_imported_count: 1, orders_imported_count: 1)
+    csv_import = create(:csv_import, status: "succeeded", imported_count: 1, failed_count: 0)
     get csv_import_path(csv_import)
     expect(response).to have_http_status(:ok)
   end

@@ -10,7 +10,7 @@
           <td class="px-4 py-3"><%= link_to merchant.reference, merchant_path(merchant), class: "text-lagom-accent hover:underline" %></td>
           <td class="px-4 py-3 text-white/70"><%= merchant.email %></td>
           <td class="px-4 py-3 font-mono text-white/70"><%= merchant.live_on %></td>
-          <td class="px-4 py-3"><%= render BadgeComponent.new(text: merchant.disbursement_frequency, variant: "accent") %></td>
+          <td class="px-4 py-3"><%= render BadgeComponent.new(text: merchant.disbursement_frequency_before_type_cast, variant: "accent") %></td>
           <td class="px-4 py-3"><%= render MoneyComponent.new(cents: merchant.minimum_monthly_fee_cents) %></td>
         </tr>
       <% end %>
