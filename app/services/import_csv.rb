@@ -28,19 +28,16 @@ class ImportCsv
     @csv_import = csv_import
     @errors = []
     @imported_count = 0
+    @constraint_error = nil
   end
 
   def call
     mark_processing
-
-    ActiveRecord::Base.transaction(requires_new: true) do
-      import_file
-      raise Rejected if errors.any?
-    end
+    return finish_failure unless import_file
 
     finish_success
   rescue Rejected
-    finish_failure
+    finish_failure(@constraint_error)
   rescue StandardError => error
     finish_failure(error.message)
     raise
@@ -65,21 +62,47 @@ class ImportCsv
 
   def import_file
     Bucket.open(csv_import.object_key) do |io|
-      CsvBatchReader.each(io:, batch_size: self.class.batch_size) do |batch|
-        batch.each { |row, line_number| import_batch_row(row, line_number) }
+      read_rows(io)
+      return false if errors.any?
+
+      io.rewind
+      strategy.guard_concurrent_changes!
+      ActiveRecord::Base.transaction(requires_new: true) do
+        write_rows(io)
       end
+      true
     end
+  rescue ActiveRecord::RecordNotUnique => error
+    @constraint_error = error.message
+    raise Rejected
   end
 
-  def import_batch_row(row, line_number)
-    strategy.import(row, line_number)
-    @imported_count += 1
-  rescue RowError => error
-    errors << { "line" => error.line, "column" => error.column, "message" => error.message }
+  def read_rows(io)
+    each_batch(io) { |batch| errors.concat(strategy.prepare_batch(batch).last) }
+  end
+
+  def write_rows(io)
+    each_batch(io) do |batch|
+      rows, batch_errors = strategy.prepare_batch(batch, lock: true)
+      errors.concat(batch_errors)
+      next if errors.any?
+
+      strategy.upsert(rows)
+      @imported_count += rows.size
+    end
+    raise Rejected if errors.any?
+  end
+
+  def each_batch(io)
+    CsvBatchReader.each(io:, batch_size: self.class.batch_size) { |batch| yield batch }
   end
 
   def strategy
-    @strategy ||= STRATEGIES.fetch(csv_import.kind) { raise ArgumentError, "unknown import kind" }.new
+    @strategy ||= STRATEGIES.fetch(csv_import.kind) { raise ArgumentError, "unknown import kind" }.new(merchant_cache:)
+  end
+
+  def merchant_cache
+    @merchant_cache ||= MerchantCache.new(batch_size: self.class.batch_size)
   end
 
   def finish_success
