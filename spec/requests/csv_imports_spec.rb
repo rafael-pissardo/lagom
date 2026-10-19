@@ -15,6 +15,9 @@ RSpec.describe "CsvImports", type: :request do
     submit = Nokogiri::HTML(response.body).at_css("input[type=submit]")
     expect(submit["value"]).to eq("Start import")
     expect(submit["disabled"]).to eq("disabled")
+
+    form = Nokogiri::HTML(response.body).at_css("form[action='#{csv_imports_path}']")
+    expect(form["enctype"]).to eq("multipart/form-data")
   end
 
   it "stores the csv in the bucket, marks it processing, and enqueues the job" do
@@ -61,5 +64,22 @@ RSpec.describe "CsvImports", type: :request do
     expect(ImportCsvJob).not_to have_been_enqueued
     expect(response).to have_http_status(:unprocessable_content)
     expect(response.body).to include("Could not start the import")
+  end
+
+  it "refreshes import status only while a show is still processing" do
+    user = create(:user)
+    post user_session_path, params: { user: { email: user.email, password: "password123456" } }
+    processing = create(:csv_import, status: "processing")
+    finished = create(:csv_import, status: "succeeded")
+
+    get csv_import_path(processing)
+    expect(response.body).to include('data-controller="import-status"')
+    expect(response.body).not_to include('http-equiv="refresh"')
+
+    [ csv_import_path(finished), csv_imports_path, new_csv_import_path ].each do |path|
+      get path
+      expect(response.body).not_to include("import-status")
+      expect(response.body).not_to include('http-equiv="refresh"')
+    end
   end
 end

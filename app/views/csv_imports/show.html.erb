@@ -1,11 +1,11 @@
 <%= render AppShellComponent.new do %>
   <%= render PageHeaderComponent.new(title: t("csv_imports.show.title")) %>
 
-  <div id="csv_import_<%= @csv_import.id %>">
+  <% status_refresh = @csv_import.pending? || @csv_import.processing? %>
+  <%= turbo_frame_tag dom_id(@csv_import), data: { controller: status_refresh ? "import-status" : nil } do %>
+    <% if status_refresh %>
+      <span data-import-status-target="pending" hidden></span>
+    <% end %>
     <%= render "csv_imports/status", csv_import: @csv_import %>
-  </div>
-
-  <% if @csv_import.processing? || @csv_import.pending? %>
-    <meta http-equiv="refresh" content="3">
   <% end %>
 <% end %>
