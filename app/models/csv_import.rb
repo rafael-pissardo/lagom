@@ -1,15 +1,15 @@
 class CsvImport < ApplicationRecord
-  KINDS = %w[merchants orders].freeze
   STATUSES = %w[pending processing succeeded failed].freeze
+
+  enum :kind, { merchants: "merchants", orders: "orders" }, validate: true
 
   attr_accessor :file
 
   validates :status, presence: true, inclusion: { in: STATUSES }
-  validates :kind, presence: true, inclusion: { in: KINDS }
   validates :object_key, presence: true, uniqueness: true
 
   def self.object_key_for(kind, now: Time.current)
-    raise ArgumentError, "unknown kind" unless KINDS.include?(kind)
+    raise ArgumentError, "unknown kind" unless kinds.key?(kind)
 
     "#{kind}-#{now.utc.strftime("%Y%m%d%H%M%S%L")}.csv"
   end
@@ -28,14 +28,6 @@ class CsvImport < ApplicationRecord
 
   def failed?
     status == "failed"
-  end
-
-  def merchants?
-    kind == "merchants"
-  end
-
-  def orders?
-    kind == "orders"
   end
 
   def errors_txt

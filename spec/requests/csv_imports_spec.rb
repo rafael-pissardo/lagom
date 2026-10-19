@@ -11,6 +11,10 @@ RSpec.describe "CsvImports", type: :request do
     expect(response.body).to include("Orders")
     expect(response.body).to include('name="csv_import[file]"')
     expect(response.body).not_to include("merchants_file")
+
+    submit = Nokogiri::HTML(response.body).at_css("input[type=submit]")
+    expect(submit["value"]).to eq("Start import")
+    expect(submit["disabled"]).to eq("disabled")
   end
 
   it "stores the csv in the bucket, marks it processing, and enqueues the job" do
