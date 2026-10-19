@@ -1,12 +1,5 @@
-email = ENV["OPERATOR_EMAIL"]
-password = ENV["OPERATOR_PASSWORD"]
-
-if Rails.env.local?
-  email ||= "operator@lagom.local"
-  password ||= "lagom-operator-password"
-elsif email.blank? || password.blank?
-  raise "OPERATOR_EMAIL and OPERATOR_PASSWORD are required in #{Rails.env}"
-end
+email = ENV["OPERATOR_EMAIL"].presence || "operator@lagom.local"
+password = ENV["OPERATOR_PASSWORD"].presence || "lagom-operator-password"
 
 User.find_or_create_by!(email: email) do |user|
   user.password = password
