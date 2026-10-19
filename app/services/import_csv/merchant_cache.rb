@@ -13,7 +13,7 @@ class ImportCsv::MerchantCache
   end
 
   def load_references(references)
-    references.uniq.each_slice(@batch_size) do |slice|
+    references.compact.uniq.each_slice(@batch_size) do |slice|
       found = Merchant.where(reference: slice).pluck(:reference, :id).to_h
       slice.each { |reference| @reference_ids[reference] = found[reference] }
     end

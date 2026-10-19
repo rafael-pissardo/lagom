@@ -10,37 +10,37 @@ class ImportCsv::Orders
   }.freeze
 
   UPDATE_COLUMNS = %i[merchant_id ordered_on amount_cents commission_cents].freeze
+  DISBURSED_MESSAGE = "cannot be changed after the order was disbursed"
+  FINANCIAL_COLUMNS = [
+    [ :merchant_id, "merchant_reference" ],
+    [ :ordered_on, "created_at" ],
+    [ :amount_cents, "amount" ],
+    [ :commission_cents, "amount" ]
+  ].freeze
 
   def initialize(merchant_cache:)
     @merchant_cache = merchant_cache
-    @checked_orders = []
+    @references = Set.new
   end
 
   def prepare(row, line_number)
     attrs = attributes(row, line_number)
-    @checked_orders << [ line_number, row.fetch("merchant_reference").strip, attrs.fetch(:ordered_on) ]
+    @references << row.fetch("merchant_reference").strip
     attrs
   end
 
-  def finish_references
+  def guard_concurrent_changes!
+    return [] if @references.empty?
+
+    merchant_cache.lock_existing(ids: [], references: @references.to_a)
     []
   end
 
-  def guard_concurrent_changes!
-    return [] if @checked_orders.empty?
+  def review_batch(entries, lock: false)
+    return [] if entries.empty?
 
-    merchant_cache.lock_existing(
-      ids: [],
-      references: @checked_orders.map { |_line, reference, _ordered_on| reference }
-    )
-    @checked_orders.each_with_object([]) do |(line_number, reference, ordered_on), found|
-      merchant = merchant_cache.fetch(reference)
-      raise ImportCsv::RowError.new(line_number, "merchant_reference", "is unknown") if merchant.nil?
-
-      ensure_live_on!(merchant, ordered_on, line_number)
-    rescue ImportCsv::RowError => error
-      found << { "line" => error.line, "column" => error.column, "message" => error.message }
-    end
+    existing = existing_orders(entries.map { |_line, attrs| attrs.fetch(:external_id) }, lock:)
+    persisted_entries(entries).filter_map { |line_number, attrs| disbursed_change(line_number, existing[attrs.fetch(:external_id)], attrs) }
   end
 
   def attributes(row, line_number)
@@ -75,6 +75,25 @@ class ImportCsv::Orders
   private
 
   attr_reader :merchant_cache
+
+  def existing_orders(external_ids, lock:)
+    scope = Order.where(external_id: external_ids.uniq)
+    scope = scope.order(:id).lock if lock
+    scope.index_by(&:external_id)
+  end
+
+  def persisted_entries(entries)
+    entries.reverse.uniq { |_line, attrs| attrs.fetch(:external_id) }.reverse
+  end
+
+  def disbursed_change(line_number, order, attrs)
+    return if order.nil? || order.disbursement_id.nil?
+
+    _key, column = FINANCIAL_COLUMNS.find { |key, _column| order.public_send(key) != attrs.fetch(key) }
+    return if column.nil?
+
+    { "line" => line_number, "column" => column, "message" => DISBURSED_MESSAGE }
+  end
 
   def ensure_live_on!(merchant, ordered_on, line_number)
     return if ordered_on >= merchant.live_on

@@ -125,7 +125,7 @@ RSpec.describe ImportCsv do
     ])
   end
 
-  it "looks up a repeated merchant once and upserts the orders without reading them" do
+  it "looks up a repeated merchant once and reads orders once per batch" do
     previous = ENV["CSV_IMPORT_BATCH_SIZE"]
     ENV["CSV_IMPORT_BATCH_SIZE"] = "1"
     create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
@@ -140,7 +140,8 @@ RSpec.describe ImportCsv do
 
     expect(queries.count { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to eq(1)
     expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to eq(1)
-    expect(selects(queries, "orders")).to eq(0)
+    expect(selects(queries, "orders")).to eq(4)
+    expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"orders"') }).to eq(2)
     expect(upserts(queries, "orders")).to eq(2)
     expect(queries.grep(/\AINSERT/).grep(/"orders"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })
     expect(Order.count).to eq(2)
@@ -332,7 +333,34 @@ RSpec.describe ImportCsv do
     expect(order.commission_cents).to eq(98)
   end
 
-  it "updates an order in place and keeps its disbursement" do
+  it "reimports a disbursed order when its financial columns stay the same" do
+    merchant = create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+    disbursement = create(:disbursement, merchant: merchant)
+    order = create(
+      :order,
+      merchant: merchant,
+      disbursement: disbursement,
+      external_id: "e653f3e14bc4",
+      ordered_on: Date.new(2023, 2, 1),
+      amount_cents: 10_229,
+      commission_cents: 98
+    )
+    csv_import = create(:csv_import, kind: "orders")
+    store_csv(csv_import, <<~CSV)
+      id;merchant_reference;amount;created_at
+      e653f3e14bc4;padberg_group;102.29;2023-02-01
+    CSV
+
+    described_class.call(csv_import: csv_import)
+
+    order.reload
+    expect(csv_import.reload).to be_succeeded
+    expect(order.disbursement_id).to eq(disbursement.id)
+    expect(order.amount_cents).to eq(10_229)
+    expect(order.commission_cents).to eq(98)
+  end
+
+  it "rejects a disbursed order whose amount changes and writes nothing else" do
     merchant = create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
     disbursement = create(:disbursement, merchant: merchant)
     order = create(
@@ -348,15 +376,59 @@ RSpec.describe ImportCsv do
     store_csv(csv_import, <<~CSV)
       id;merchant_reference;amount;created_at
       e653f3e14bc4;padberg_group;102.29;2023-02-01
+      aaaaaaaaaaaa;padberg_group;50.00;2023-02-02
     CSV
+    phases = []
+    allow(ActiveRecord::Base).to receive(:transaction).and_wrap_original do |method, *args, **kwargs, &block|
+      phases << :write if kwargs[:requires_new]
+      method.call(*args, **kwargs, &block)
+    end
 
     described_class.call(csv_import: csv_import)
 
     order.reload
+    expect(phases).to eq([])
+    expect(csv_import.reload).to be_failed
     expect(order.disbursement_id).to eq(disbursement.id)
-    expect(order.amount_cents).to eq(10_229)
-    expect(order.commission_cents).to eq(98)
-    expect(Order.count).to eq(1)
+    expect(order.amount_cents).to eq(1_000)
+    expect(Order.find_by(external_id: "aaaaaaaaaaaa")).to be_nil
+    expect(csv_import.error_rows).to eq([
+      { "line" => 2, "column" => "amount", "message" => "cannot be changed after the order was disbursed" }
+    ])
+  end
+
+  it "rolls back the write when an order is disbursed after validation" do
+    merchant = create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+    order = create(
+      :order,
+      merchant: merchant,
+      external_id: "e653f3e14bc4",
+      ordered_on: Date.new(2023, 2, 1),
+      amount_cents: 1_000,
+      commission_cents: 10
+    )
+    csv_import = create(:csv_import, kind: "orders")
+    store_csv(csv_import, <<~CSV)
+      id;merchant_reference;amount;created_at
+      e653f3e14bc4;padberg_group;102.29;2023-02-01
+    CSV
+    allow_any_instance_of(ImportCsv::Orders).to receive(:review_batch).and_wrap_original do |method, entries, **kwargs|
+      if kwargs[:lock]
+        order.update!(disbursement: create(:disbursement, merchant: merchant))
+      end
+      method.call(entries, **kwargs)
+    end
+
+    described_class.call(csv_import: csv_import)
+
+    order.reload
+    expect(csv_import.reload).to be_failed
+    expect(order.disbursement_id).to be_nil
+    expect(order.amount_cents).to eq(1_000)
+    expect(Disbursement.count).to eq(0)
+    expect(csv_import.error_rows).to eq([
+      { "line" => 2, "column" => "amount", "message" => "cannot be changed after the order was disbursed" }
+    ])
   end
 
   def capture_sql

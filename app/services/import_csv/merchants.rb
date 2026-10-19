@@ -17,34 +17,36 @@ class ImportCsv::Merchants
     @merchant_cache = merchant_cache
     @reference_owner = {}
     @reference_for_id = {}
-    @pending_references = []
+    @ids = Set.new
+    @references = Set.new
   end
 
   def prepare(row, line_number)
     attrs = attributes(row, line_number)
-    @pending_references << [ line_number, attrs[:id], attrs[:reference] ]
+    @ids << attrs[:id]
+    @references << attrs[:reference]
     attrs
   end
 
   def guard_concurrent_changes!
-    return [] if @pending_references.empty?
+    return [] if @ids.empty?
 
-    merchant_cache.lock_existing(
-      ids: @pending_references.map { |_line, id, _reference| id },
-      references: @pending_references.map { |_line, _id, reference| reference }
-    )
+    merchant_cache.lock_existing(ids: @ids.to_a, references: @references.to_a)
     @reference_owner = {}
     @reference_for_id = {}
-    finish_references
+    []
   end
 
-  def finish_references
-    return [] if @pending_references.empty?
+  def review_batch(entries, **)
+    return [] if entries.empty?
 
-    merchant_cache.load_references(@pending_references.map { |_line, _id, reference| reference })
-    merchant_cache.load_ids(@pending_references.map { |_line, id, _reference| id })
-    @pending_references.each_with_object([]) do |(line_number, id, reference), found|
-      claim_reference!(id, reference, line_number)
+    ids = entries.map { |_line, attrs| attrs.fetch(:id) }
+    references = entries.map { |_line, attrs| attrs.fetch(:reference) }
+    merchant_cache.load_ids(ids)
+    merchant_cache.load_references(references)
+    merchant_cache.load_references(ids.filter_map { |id| merchant_cache.reference_for_id(id) })
+    entries.each_with_object([]) do |(line_number, attrs), found|
+      claim_reference!(attrs.fetch(:id), attrs.fetch(:reference), line_number)
     rescue ImportCsv::RowError => error
       found << { "line" => error.line, "column" => error.column, "message" => error.message }
     end

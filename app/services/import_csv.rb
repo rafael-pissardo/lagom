@@ -79,17 +79,30 @@ class ImportCsv
   end
 
   def read_rows(io)
-    each_batch(io) do |batch|
-      batch.each { |row, line_number| prepare_row(row, line_number) }
-    end
-    errors.concat(strategy.finish_references)
+    each_batch(io) { |batch| errors.concat(strategy.review_batch(parsed_batch(batch))) }
   end
 
   def write_rows(io)
     each_batch(io) do |batch|
-      rows = batch.map { |row, line_number| strategy.attributes(row, line_number) }
-      strategy.upsert(rows)
+      parsed = []
+      batch.each do |row, line_number|
+        parsed << [ line_number, strategy.attributes(row, line_number) ]
+      rescue RowError => error
+        record_row_error(error)
+      end
+      errors.concat(strategy.review_batch(parsed, lock: true))
+      next if errors.any?
+
+      strategy.upsert(parsed.map(&:last))
       @imported_count += batch.size
+    end
+    raise Rejected if errors.any?
+  end
+
+  def parsed_batch(batch)
+    batch.filter_map do |row, line_number|
+      attrs = prepare_row(row, line_number)
+      [ line_number, attrs ] if attrs
     end
   end
 
@@ -100,6 +113,11 @@ class ImportCsv
   def prepare_row(row, line_number)
     strategy.prepare(row, line_number)
   rescue RowError => error
+    record_row_error(error)
+    nil
+  end
+
+  def record_row_error(error)
     errors << { "line" => error.line, "column" => error.column, "message" => error.message }
   end
 
