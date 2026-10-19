@@ -28,26 +28,16 @@ class ImportCsv
     @csv_import = csv_import
     @errors = []
     @imported_count = 0
+    @constraint_error = nil
   end
 
   def call
     mark_processing
-    validate_file
-    if errors.any?
-      finish_failure
-      return
-    end
-
-    ActiveRecord::Base.transaction(requires_new: true) do
-      errors.concat(strategy.guard_concurrent_changes!)
-      raise Rejected if errors.any?
-
-      write_file
-    end
+    return finish_failure unless import_file
 
     finish_success
   rescue Rejected
-    finish_failure
+    finish_failure(@constraint_error)
   rescue StandardError => error
     finish_failure(error.message)
     raise
@@ -70,55 +60,41 @@ class ImportCsv
     )
   end
 
-  def validate_file
-    Bucket.open(csv_import.object_key) { |io| read_rows(io) }
-  end
+  def import_file
+    Bucket.open(csv_import.object_key) do |io|
+      read_rows(io)
+      return false if errors.any?
 
-  def write_file
-    Bucket.open(csv_import.object_key) { |io| write_rows(io) }
+      io.rewind
+      strategy.guard_concurrent_changes!
+      ActiveRecord::Base.transaction(requires_new: true) do
+        write_rows(io)
+      end
+      true
+    end
+  rescue ActiveRecord::RecordNotUnique => error
+    @constraint_error = error.message
+    raise Rejected
   end
 
   def read_rows(io)
-    each_batch(io) { |batch| errors.concat(strategy.review_batch(parsed_batch(batch))) }
+    each_batch(io) { |batch| errors.concat(strategy.prepare_batch(batch).last) }
   end
 
   def write_rows(io)
     each_batch(io) do |batch|
-      parsed = []
-      batch.each do |row, line_number|
-        parsed << [ line_number, strategy.attributes(row, line_number) ]
-      rescue RowError => error
-        record_row_error(error)
-      end
-      errors.concat(strategy.review_batch(parsed, lock: true))
+      rows, batch_errors = strategy.prepare_batch(batch, lock: true)
+      errors.concat(batch_errors)
       next if errors.any?
 
-      strategy.upsert(parsed.map(&:last))
-      @imported_count += batch.size
+      strategy.upsert(rows)
+      @imported_count += rows.size
     end
     raise Rejected if errors.any?
   end
 
-  def parsed_batch(batch)
-    batch.filter_map do |row, line_number|
-      attrs = prepare_row(row, line_number)
-      [ line_number, attrs ] if attrs
-    end
-  end
-
   def each_batch(io)
     CsvBatchReader.each(io:, batch_size: self.class.batch_size) { |batch| yield batch }
-  end
-
-  def prepare_row(row, line_number)
-    strategy.prepare(row, line_number)
-  rescue RowError => error
-    record_row_error(error)
-    nil
-  end
-
-  def record_row_error(error)
-    errors << { "line" => error.line, "column" => error.column, "message" => error.message }
   end
 
   def strategy

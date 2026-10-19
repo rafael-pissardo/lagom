@@ -21,6 +21,33 @@ RSpec.describe DisburseMerchant do
       expect(order.reload.disbursement).to eq(disbursement)
     end
 
+    it "locks the merchant and the eligible orders while associating them" do
+      merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 6_174)
+      queries = []
+      callback = ->(*, payload) { queries << payload[:sql] }
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
+      end
+
+      expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to eq(1)
+      expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"orders"') }).to eq(1)
+    end
+
+    it "rolls back when fewer orders are associated than calculated" do
+      merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
+      order = create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 6_174)
+      allow_any_instance_of(ActiveRecord::Relation).to receive(:update_all).and_return(0)
+
+      expect {
+        described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
+      }.to raise_error(DisburseMerchant::AssociationError, "associated 0 of 1 orders")
+
+      expect(Disbursement.count).to eq(0)
+      expect(order.reload.disbursement_id).to be_nil
+    end
+
     it "does not create a disbursement when there are no eligible orders" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
 

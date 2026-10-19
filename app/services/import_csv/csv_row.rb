@@ -1,8 +1,12 @@
 module ImportCsv::CsvRow
   private
 
-  def last_row_per(rows, key)
-    rows.reverse.uniq { |row| row.fetch(key) }.reverse
+  def last_entries(entries, key)
+    entries.reverse.uniq { |_line, attrs| attrs.fetch(key) }.reverse
+  end
+
+  def row_error(error)
+    { "line" => error.line, "column" => error.column, "message" => error.message }
   end
 
   def raise_row_error!(record, line_number, columns)

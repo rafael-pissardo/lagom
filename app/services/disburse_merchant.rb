@@ -1,4 +1,6 @@
 class DisburseMerchant
+  class AssociationError < StandardError; end
+
   def self.call(merchant:, as_of:)
     new(merchant:, as_of:).call
   end
@@ -10,29 +12,29 @@ class DisburseMerchant
 
   def call
     return unless eligible_today?
-    return if Disbursement.exists?(merchant: merchant, disbursed_on: as_of)
 
-    orders = eligible_orders.to_a
-    return if orders.empty?
+    Merchant.transaction(requires_new: true) do
+      merchant.lock!
+      return if Disbursement.exists?(merchant: merchant, disbursed_on: as_of)
 
-    gross_cents = orders.sum(&:amount_cents)
-    commission_cents = orders.sum(&:commission_cents)
-    net_cents = gross_cents - commission_cents
+      orders = eligible_orders.reorder(:id).lock.to_a
+      return if orders.empty?
 
-    Disbursement.transaction do
+      gross_cents = orders.sum(&:amount_cents)
+      commission_cents = orders.sum(&:commission_cents)
       disbursement = Disbursement.create!(
         merchant: merchant,
         disbursed_on: as_of,
         reference: Disbursement.build_reference(merchant.reference, as_of),
         gross_cents: gross_cents,
         commission_cents: commission_cents,
-        net_cents: net_cents
+        net_cents: gross_cents - commission_cents
       )
-
-      Order.where(id: orders.map(&:id), disbursement_id: nil).update_all(
+      associated = Order.where(id: orders.map(&:id), disbursement_id: nil).update_all(
         disbursement_id: disbursement.id,
         updated_at: Time.current
       )
+      raise AssociationError, "associated #{associated} of #{orders.size} orders" unless associated == orders.size
     end
   end
 

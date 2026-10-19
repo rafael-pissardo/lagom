@@ -20,27 +20,18 @@ class ImportCsv::Orders
 
   def initialize(merchant_cache:)
     @merchant_cache = merchant_cache
-    @references = Set.new
-  end
-
-  def prepare(row, line_number)
-    attrs = attributes(row, line_number)
-    @references << row.fetch("merchant_reference").strip
-    attrs
   end
 
   def guard_concurrent_changes!
-    return [] if @references.empty?
-
-    merchant_cache.lock_existing(ids: [], references: @references.to_a)
-    []
+    merchant_cache.reset!
   end
 
-  def review_batch(entries, lock: false)
-    return [] if entries.empty?
-
-    existing = existing_orders(entries.map { |_line, attrs| attrs.fetch(:external_id) }, lock:)
-    persisted_entries(entries).filter_map { |line_number, attrs| disbursed_change(line_number, existing[attrs.fetch(:external_id)], attrs) }
+  def prepare_batch(batch, lock: false)
+    merchant_cache.load_references(batch.filter_map { |row, _line| row["merchant_reference"]&.strip })
+    parsed, errors = parse_batch(batch)
+    kept = last_entries(parsed, :external_id)
+    errors.concat(disbursed_errors(kept, lock:))
+    [ kept.map(&:last), errors ]
   end
 
   def attributes(row, line_number)
@@ -64,26 +55,34 @@ class ImportCsv::Orders
   def upsert(rows)
     return if rows.empty?
 
-    Order.upsert_all(
-      last_row_per(rows, :external_id),
-      unique_by: :external_id,
-      update_only: UPDATE_COLUMNS,
-      returning: false
-    )
+    Order.upsert_all(rows, unique_by: :external_id, update_only: UPDATE_COLUMNS, returning: false)
   end
 
   private
 
   attr_reader :merchant_cache
 
+  def parse_batch(batch)
+    parsed = []
+    errors = batch.each_with_object([]) do |(row, line_number), found|
+      parsed << [ line_number, attributes(row, line_number) ]
+    rescue ImportCsv::RowError => error
+      found << row_error(error)
+    end
+    [ parsed, errors ]
+  end
+
+  def disbursed_errors(entries, lock:)
+    return [] if entries.empty?
+
+    existing = existing_orders(entries.map { |_line, attrs| attrs.fetch(:external_id) }, lock:)
+    entries.filter_map { |line_number, attrs| disbursed_change(line_number, existing[attrs.fetch(:external_id)], attrs) }
+  end
+
   def existing_orders(external_ids, lock:)
     scope = Order.where(external_id: external_ids.uniq)
     scope = scope.order(:id).lock if lock
     scope.index_by(&:external_id)
-  end
-
-  def persisted_entries(entries)
-    entries.reverse.uniq { |_line, attrs| attrs.fetch(:external_id) }.reverse
   end
 
   def disbursed_change(line_number, order, attrs)

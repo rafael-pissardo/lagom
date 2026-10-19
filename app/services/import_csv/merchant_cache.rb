@@ -1,54 +1,37 @@
 class ImportCsv::MerchantCache
   def initialize(batch_size: ImportCsv.batch_size)
     @batch_size = batch_size
-    @merchants = {}
-    @reference_ids = {}
-    @id_references = {}
+    reset!
+  end
+
+  def reset!
+    @by_reference = {}
+    @by_id = {}
   end
 
   def fetch(reference)
-    return @merchants[reference] if @merchants.key?(reference)
+    load_references([ reference ])
+    @by_reference[reference]
+  end
 
-    @merchants[reference] = Merchant.find_by(reference: reference)
+  def by_id(id)
+    load_ids([ id ])
+    @by_id[id]
   end
 
   def load_references(references)
-    references.compact.uniq.each_slice(@batch_size) do |slice|
-      found = Merchant.where(reference: slice).pluck(:reference, :id).to_h
-      slice.each { |reference| @reference_ids[reference] = found[reference] }
+    missing = references.compact.uniq.reject { |reference| @by_reference.key?(reference) }
+    missing.each_slice(@batch_size) do |slice|
+      found = Merchant.where(reference: slice).index_by(&:reference)
+      slice.each { |reference| @by_reference[reference] = found[reference] }
     end
   end
 
   def load_ids(ids)
-    ids.uniq.each_slice(@batch_size) do |slice|
-      found = Merchant.where(id: slice).pluck(:id, :reference).to_h
-      slice.each { |id| @id_references[id] = found[id] }
+    missing = ids.compact.uniq.reject { |id| @by_id.key?(id) }
+    missing.each_slice(@batch_size) do |slice|
+      found = Merchant.where(id: slice).index_by(&:id)
+      slice.each { |id| @by_id[id] = found[id] }
     end
-  end
-
-  def lock_existing(ids:, references:)
-    found_ids = []
-    references.uniq.each_slice(@batch_size) do |slice|
-      found_ids.concat(Merchant.where(reference: slice).pluck(:id))
-    end
-    ids.uniq.each_slice(@batch_size) do |slice|
-      found_ids.concat(Merchant.where(id: slice).pluck(:id))
-    end
-
-    @merchants = {}
-    found_ids.uniq.sort.each_slice(@batch_size) do |slice|
-      Merchant.where(id: slice).order(:id).lock.each do |merchant|
-        @merchants[merchant.reference] = merchant
-      end
-    end
-    references.uniq.each { |reference| @merchants[reference] = nil unless @merchants.key?(reference) }
-  end
-
-  def reference_id(reference)
-    @reference_ids[reference]
-  end
-
-  def reference_for_id(id)
-    @id_references[id]
   end
 end

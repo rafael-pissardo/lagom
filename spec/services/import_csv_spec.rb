@@ -6,10 +6,19 @@ RSpec.describe ImportCsv do
   end
 
   let(:files) { {} }
+  let(:bucket_opens) { [] }
+  let(:bucket_rewinds) { [] }
 
   before do
     allow(Bucket).to receive(:open) do |key, &block|
-      block.call(StringIO.new(files.fetch(key)))
+      bucket_opens << key
+      io = StringIO.new(files.fetch(key))
+      rewinds = bucket_rewinds
+      io.define_singleton_method(:rewind) do
+        rewinds << key
+        super()
+      end
+      block.call(io)
     end
   end
 
@@ -44,6 +53,8 @@ RSpec.describe ImportCsv do
     }.to have_enqueued_job(BackfillSettlementsJob)
 
     expect(phases).to eq(%i[read_outside write read_inside])
+    expect(bucket_opens).to eq([ csv_import.object_key ])
+    expect(bucket_rewinds).to eq([ csv_import.object_key ])
 
     csv_import.reload
     expect(csv_import).to be_succeeded
@@ -73,6 +84,8 @@ RSpec.describe ImportCsv do
     }.not_to have_enqueued_job(BackfillSettlementsJob)
 
     expect(phases).to eq([])
+    expect(bucket_opens).to eq([ csv_import.object_key ])
+    expect(bucket_rewinds).to eq([])
 
     csv_import.reload
     expect(csv_import).to be_failed
@@ -138,8 +151,9 @@ RSpec.describe ImportCsv do
 
     queries = capture_sql { described_class.call(csv_import: csv_import) }
 
-    expect(queries.count { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to eq(1)
-    expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to eq(1)
+    expect(selects(queries, "merchants")).to eq(2)
+    expect(queries.none? { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to be true
+    expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
     expect(selects(queries, "orders")).to eq(4)
     expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"orders"') }).to eq(2)
     expect(upserts(queries, "orders")).to eq(2)
@@ -169,10 +183,10 @@ RSpec.describe ImportCsv do
 
     queries = capture_sql { described_class.call(csv_import: csv_import) }
 
-    expect(queries.grep(/"merchants"\."id" = /).grep_v(/FOR UPDATE/)).to be_empty
-    expect(queries.count { |sql| sql.include?('"merchants"."reference" IN') }).to eq(3)
-    expect(queries.count { |sql| sql.include?('"merchants"."id" IN') }).to eq(3)
-    expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to eq(1)
+    expect(queries.none? { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to be true
+    expect(queries.count { |sql| sql.include?('"merchants"."reference" IN') }).to eq(2)
+    expect(queries.count { |sql| sql.include?('"merchants"."id" IN') }).to eq(2)
+    expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
     expect(upserts(queries, "merchants")).to eq(1)
     expect(queries.grep(/\AINSERT/).grep(/"merchants"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })
     expect(merchant.reload.email).to eq("info@padberg-group.com")
@@ -193,7 +207,7 @@ RSpec.describe ImportCsv do
 
     queries = capture_sql { described_class.call(csv_import: csv_import) }
 
-    expect(selects(queries, "merchants")).to eq(12)
+    expect(selects(queries, "merchants")).to eq(8)
     expect(queries.none? { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to be true
     expect(Merchant.count).to eq(3)
   ensure
@@ -225,9 +239,11 @@ RSpec.describe ImportCsv do
       id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
       11111111-1111-4111-8111-111111111111;padberg_group;info@other.test;2023-02-01;DAILY;0.0
     CSV
-    allow_any_instance_of(ImportCsv::MerchantCache).to receive(:lock_existing).and_wrap_original do |method, **kwargs|
-      create(:merchant, reference: "padberg_group")
-      method.call(**kwargs)
+    allow(ActiveRecord::Base).to receive(:transaction).and_wrap_original do |method, *args, **kwargs, &block|
+      method.call(*args, **kwargs) do
+        create(:merchant, reference: "padberg_group") if kwargs[:requires_new]
+        block.call
+      end
     end
 
     described_class.call(csv_import: csv_import)
@@ -247,9 +263,11 @@ RSpec.describe ImportCsv do
       id;merchant_reference;amount;created_at
       e653f3e14bc4;padberg_group;102.29;2023-02-01
     CSV
-    allow_any_instance_of(ImportCsv::MerchantCache).to receive(:lock_existing).and_wrap_original do |method, **kwargs|
-      merchant.update!(live_on: Date.new(2023, 3, 1))
-      method.call(**kwargs)
+    allow(ActiveRecord::Base).to receive(:transaction).and_wrap_original do |method, *args, **kwargs, &block|
+      method.call(*args, **kwargs) do
+        merchant.update!(live_on: Date.new(2023, 3, 1)) if kwargs[:requires_new]
+        block.call
+      end
     end
 
     described_class.call(csv_import: csv_import)
@@ -314,6 +332,40 @@ RSpec.describe ImportCsv do
     expect(csv_import.error_rows).to eq([
       { "line" => 3, "column" => "reference", "message" => "Reference has already been taken" }
     ])
+  end
+
+  it "keeps the last merchant row when the id is repeated" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, <<~CSV)
+      id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+      86312006-4d7e-45c4-9c28-788f4aa68a62;first_group;first@merchant.test;2023-02-01;DAILY;0.0
+      86312006-4d7e-45c4-9c28-788f4aa68a62;last_group;last@merchant.test;2023-02-01;WEEKLY;15.0
+    CSV
+
+    described_class.call(csv_import: csv_import)
+
+    merchant = Merchant.find("86312006-4d7e-45c4-9c28-788f4aa68a62")
+    expect(csv_import.reload).to be_succeeded
+    expect(Merchant.count).to eq(1)
+    expect(merchant.reference).to eq("last_group")
+    expect(merchant.email).to eq("last@merchant.test")
+    expect(csv_import.merchants_imported_count).to eq(1)
+  end
+
+  it "rolls back when postgres rejects a merchant reference" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, <<~CSV)
+      id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+      86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;info@padberg-group.com;2023-02-01;DAILY;0.0
+    CSV
+    allow(Merchant).to receive(:upsert_all).and_raise(ActiveRecord::RecordNotUnique.new("duplicate key"))
+
+    described_class.call(csv_import: csv_import)
+
+    csv_import.reload
+    expect(csv_import).to be_failed
+    expect(csv_import.error_message).to eq("duplicate key")
+    expect(Merchant.count).to eq(0)
   end
 
   it "keeps the last order when the same id is repeated in one batch" do
@@ -388,6 +440,8 @@ RSpec.describe ImportCsv do
 
     order.reload
     expect(phases).to eq([])
+    expect(bucket_opens).to eq([ csv_import.object_key ])
+    expect(bucket_rewinds).to eq([])
     expect(csv_import.reload).to be_failed
     expect(order.disbursement_id).to eq(disbursement.id)
     expect(order.amount_cents).to eq(1_000)
@@ -412,11 +466,11 @@ RSpec.describe ImportCsv do
       id;merchant_reference;amount;created_at
       e653f3e14bc4;padberg_group;102.29;2023-02-01
     CSV
-    allow_any_instance_of(ImportCsv::Orders).to receive(:review_batch).and_wrap_original do |method, entries, **kwargs|
+    allow_any_instance_of(ImportCsv::Orders).to receive(:prepare_batch).and_wrap_original do |method, batch, **kwargs|
       if kwargs[:lock]
         order.update!(disbursement: create(:disbursement, merchant: merchant))
       end
-      method.call(entries, **kwargs)
+      method.call(batch, **kwargs)
     end
 
     described_class.call(csv_import: csv_import)
