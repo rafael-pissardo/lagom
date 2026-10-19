@@ -4,12 +4,25 @@
   <%= render CardComponent.new do %>
     <%= form_with model: @csv_import, class: "space-y-6", multipart: true do |form| %>
       <div class="space-y-2">
-        <%= form.label :merchants_file, t("csv_imports.new.merchants_file"), class: "block text-sm text-white/70" %>
-        <%= form.file_field :merchants_file, required: true, accept: ".csv,text/csv", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm" %>
+        <%= form.label :kind, t("csv_imports.new.kind"), class: "block text-sm text-white/70" %>
+        <%= form.select :kind,
+              [
+                [ t("csv_imports.kinds.merchants"), "merchants" ],
+                [ t("csv_imports.kinds.orders"), "orders" ]
+              ],
+              { include_blank: t("csv_imports.new.kind_prompt") },
+              required: true,
+              class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm" %>
+        <% if @csv_import.errors[:kind].any? %>
+          <p class="text-sm text-rose-300"><%= @csv_import.errors[:kind].to_sentence %></p>
+        <% end %>
       </div>
       <div class="space-y-2">
-        <%= form.label :orders_file, t("csv_imports.new.orders_file"), class: "block text-sm text-white/70" %>
-        <%= form.file_field :orders_file, required: true, accept: ".csv,text/csv", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm" %>
+        <%= form.label :file, t("csv_imports.new.file"), class: "block text-sm text-white/70" %>
+        <%= form.file_field :file, required: true, accept: ".csv,text/csv", class: "w-full rounded-lg border border-white/10 bg-lagom-bg px-3 py-2 text-sm" %>
+        <% if @csv_import.errors[:file].any? %>
+          <p class="text-sm text-rose-300"><%= @csv_import.errors[:file].to_sentence %></p>
+        <% end %>
       </div>
       <%= form.submit t("csv_imports.new.submit"), class: "inline-flex items-center justify-center rounded-lg bg-lagom-accent px-4 py-2 text-sm font-medium text-lagom-bg hover:bg-[#b8a8f5]" %>
     <% end %>

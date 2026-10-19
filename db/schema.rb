@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,8 +56,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_210000) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "kind"
+    t.string "object_key"
+    t.index ["object_key"], name: "index_csv_imports_on_object_key", unique: true, where: "(object_key IS NOT NULL)"
     t.index ["status"], name: "index_csv_imports_on_status"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'processing'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])", name: "csv_imports_status_check"
+    t.check_constraint "kind IS NULL OR (kind::text = ANY (ARRAY['merchants'::character varying, 'orders'::character varying]::text[]))", name: "csv_imports_kind_check"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])", name: "csv_imports_status_check"
   end
 
   create_table "disbursements", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -88,7 +92,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_210000) do
     t.datetime "updated_at", null: false
     t.index ["disbursement_frequency"], name: "index_merchants_on_disbursement_frequency"
     t.index ["reference"], name: "index_merchants_on_reference", unique: true
-    t.check_constraint "disbursement_frequency::text = ANY (ARRAY['DAILY'::character varying::text, 'WEEKLY'::character varying::text])", name: "merchants_disbursement_frequency_check"
+    t.check_constraint "disbursement_frequency::text = ANY (ARRAY['DAILY'::character varying, 'WEEKLY'::character varying]::text[])", name: "merchants_disbursement_frequency_check"
     t.check_constraint "minimum_monthly_fee_cents >= 0", name: "merchants_minimum_monthly_fee_cents_non_negative"
   end
 

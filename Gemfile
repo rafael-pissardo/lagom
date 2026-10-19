@@ -44,3 +44,4 @@ group :test do
 end
 
 gem "devise", "~> 5.0"
+gem "aws-sdk-s3", require: false
