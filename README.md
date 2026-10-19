@@ -14,10 +14,12 @@ How the AI was used: [docs/registro-da-construcao.md](docs/registro-da-construca
 - Rails 8.1.4
 - PostgreSQL
 - Solid Queue (1 process, 1 thread)
+- Solid Cable (messages in the primary database)
 - Hotwire + Tailwind (Railway-inspired dark UI)
+- Pagy (10 rows per page)
 - RSpec, FactoryBot, SimpleCov
 - Devise (email and password only)
-- Mission Control for job inspection
+- Mission Control at `/jobs` (not linked from the sidebar)
 
 ## Setup
 
@@ -57,6 +59,14 @@ Postgres defaults to `localhost:5434` so it does not collide with other local da
 
 From **CSV imports**, choose Merchant or Orders and upload one `;`-separated CSV. The file is stored in the bucket as `{kind}-{timestamp}.csv` before the import record is created. The request returns immediately with status `processing`. Solid Queue reads the file in batches and, when the file has no row errors, backfills disbursements and monthly fees. A row error rolls the whole file back and the import page offers a plain-text download of the line and column.
 
+The show page subscribes over Action Cable while the import is `pending` or `processing`. When the status changes, the page replaces the status block in place. A finished import does not subscribe. Solid Cable carries the message from the worker process to the web process.
+
+## Operator console
+
+The sidebar lists merchants, disbursements, monthly fees, the yearly report, and CSV imports.
+
+Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 per page`, including when the list fits on one page. Filters update as you type: a partial, case-insensitive match on name or email, a calendar for dates, and a dropdown for tags such as frequency or status. There is no Filter button. Each column header has ↑ and ↓. Dates render as `DD/MM/YYYY`. Amounts group thousands and keep a dot decimal, as in `36,928,327.40 €`.
+
 ## Settlement rules implemented
 
 - Orders are disbursed exactly once.
@@ -74,11 +84,10 @@ After importing and backfilling, open **Yearly report** or run:
 bin/rails runner 'puts YearlyReport.call.inspect'
 ```
 
-Fill the challenge table in your submission with those numbers.
-
 | Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Amount of monthly fees charged |
-| --- | --- | --- | --- | --- | --- |
-| _run import first_ |  |  |  |  |  |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 562.83 € |
+| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 1,735.65 € |
 
 ## Tests
 
@@ -128,7 +137,8 @@ Run web + worker processes from the `Procfile`. The Railway pre-deploy command a
 
 ## Decisions and AI usage
 
-- Money is stored as integer cents via `Finance::Amount`. Product commission tiers live in `Commission`.
+- Money is stored as integer cents via `Finance::Amount`. The screen groups thousands (`131,931.34 €`). Product commission tiers live in `Commission`.
+- Dates on screen use `DD/MM/YYYY`. Filter fields still submit `YYYY-MM-DD`, which is what the date input requires.
 - UI strings go through Rails I18n (`en`) from day one.
 - Tailwind ViewComponents mirror the railway.com dark palette without copying Railway branding.
 - Cursor was used to plan and implement. Business rules come from the challenge text and the decisions recorded during planning, not from invented product behaviour.
