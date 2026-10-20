@@ -77,6 +77,8 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 
 A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022.
 
+The page filters by year as you type, sorts every column, and pages 10 years at a time. It stays subscribed over Action Cable. A new or changed disbursement or monthly fee refreshes the table, at most once every 2 seconds, and the settlement job sends one more refresh when it finishes. The current year filter, sort, and page stay in the URL.
+
 After importing and backfilling, open **Yearly report** or run:
 
 ```bash

@@ -1,4 +1,6 @@
 class Disbursement < ApplicationRecord
+  include RefreshesYearlyReport
+
   belongs_to :merchant
   has_many :orders, dependent: :restrict_with_exception
 

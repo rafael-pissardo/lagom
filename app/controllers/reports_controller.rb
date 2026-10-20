@@ -1,5 +1,9 @@
 class ReportsController < ApplicationController
   def yearly
-    @rows = YearlyReport.call
+    @sort = YearlyReportSort.new(params)
+    rows = YearlyReport.call
+    year = params[:year].to_s.strip
+    rows = rows.select { |row| row.year.to_s.include?(year) } if year.present?
+    @pagy, @rows = pagy(:offset, @sort.apply(rows))
   end
 end
