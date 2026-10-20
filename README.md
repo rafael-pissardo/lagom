@@ -26,7 +26,7 @@ How the AI was used: [day 1](docs/registro-da-construcao.md), [day 2](docs/regis
 ```bash
 docker compose up -d
 bundle install
-bin/rails db:prepare db:seed
+bin/rails db:prepare
 bin/dev
 ```
 
@@ -36,12 +36,7 @@ In another terminal:
 bin/jobs
 ```
 
-`db:seed` creates the operator in every environment, including production:
-
-- email: `operator@lagom.local`
-- password: `lagom-operator-password`
-
-`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` override those values when set. They are optional.
+The seed does not create a user. Create the operator outside `db/seeds.rb`.
 
 Postgres defaults to `localhost:5434` so it does not collide with other local databases.
 
@@ -71,12 +66,16 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 
 - Orders are disbursed exactly once.
 - Daily merchants settle every day; weekly merchants settle on the weekday of `live_on`.
-- Production queries take undisbursed orders with `ordered_on <= yesterday` and `ordered_on >= live_on`, so a missed day is caught up.
-- Commission: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%, always rounded up to 2 decimals.
+- A run pays every eligible day up to that day, one disbursement per day. Daily merchants get each missed day. Weekly merchants get only the weekday of `live_on`. An order belongs to one disbursement. Orders in that disbursement have `ordered_on <=` the day before it, and `ordered_on >= live_on`.
+- Commission is calculated per order and rounded up to the next cent: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%.
 - Net to merchant = gross − order commissions. Monthly fees are stored, not subtracted.
-- Monthly fees close on the 1st for the previous calendar month. Backfill uses the CSV clock (`max(ordered_on)`), so November 2023 orders are disbursed and November 2023 monthly fees are not charged.
+- Every run closes the previous calendar month when that fee does not exist yet. `ChargeMonthlyFee` does not create a second row for the same merchant and month.
+- A month with no commissions, inside the closed range, is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
+- Backfill uses the CSV clock (`max(ordered_on)`), so November 2023 orders are disbursed and November 2023 monthly fees are not charged.
 
 ## Yearly report
+
+A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022.
 
 After importing and backfilling, open **Yearly report** or run:
 
@@ -126,14 +125,25 @@ Create two environments (staging, production), attach Postgres, set:
 - `AWS_ENDPOINT_URL`
 - `AWS_S3_BUCKET_NAME`
 
-`OPERATOR_EMAIL` and `OPERATOR_PASSWORD` are optional. When they are absent, seed uses `operator@lagom.local` and `lagom-operator-password`. `CSV_IMPORT_BATCH_SIZE` is optional and defaults to 500.
+`CSV_IMPORT_BATCH_SIZE` is optional and defaults to 500.
 
-Run web + worker processes from the `Procfile`. The Railway pre-deploy command and the production container both run `db:prepare db:seed` before the server starts, including when the database already exists.
+Run web + worker processes from the `Procfile`. The Railway pre-deploy command and the production container both run `db:prepare` before the server starts. Neither creates an operator.
 
-## Trade-offs for the next version
+## Decisions not taken
+
+- A run closes only the immediately previous month. If the job does not run for a whole month, that older month is never charged. Catching up every missed month was not part of this change.
+
+## What I would improve with more time
 
 - **P0.** No logging service such as Datadog. Server logs are the workaround today.
 - **P1.** Railway Hobby will not absorb large data or user load. Measure infra behaviour next.
+- Close every missed monthly fee, not only the previous month, if a run can be down for more than a few days.
+
+## Questions for seQura
+
+- Year axis: should a disbursement on 01/01/2023 of a 31/12/2022 order count in 2023, and the December fee in 2022? That is what this report does.
+- Pro-rata: the first month is charged the full minimum when `live_on` is mid-month, and a month with no commissions is charged the full minimum. Should either case be prorated?
+- Missed day: the next run creates one disbursement per eligible day (each day for a daily merchant, only the `live_on` weekday for a weekly merchant). Should a skipped day instead be folded into a single disbursement on the day the job recovers?
 
 ## Decisions and AI usage
 

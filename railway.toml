@@ -1,2 +1,2 @@
 [deploy]
-preDeployCommand = "bin/rails db:prepare db:seed"
+preDeployCommand = "bin/rails db:prepare"

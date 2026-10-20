@@ -13,7 +13,9 @@ RSpec.describe BackfillSettlements do
 
     described_class.call(as_of: Date.new(2022, 9, 15))
 
-    expect(Disbursement.where(merchant: merchant).count).to be >= 1
+    expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :reference)).to eq([
+      [ Date.new(2022, 9, 2), "backfill_co20220902" ]
+    ])
     expect(MonthlyFee.find_by(merchant: merchant, year: 2022, month: 8)).to be_nil
     expect(MonthlyFee.find_by(merchant: merchant, year: 2022, month: 9)).to be_nil
   end

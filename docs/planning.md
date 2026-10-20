@@ -55,7 +55,7 @@ Indexes, alinhados às validações e às buscas:
 - listas: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
 - checks: frequency em `DAILY`/`WEEKLY`, centavos `>= 0`, presença via `null: false`
 
-Amount zero passa. Amount negativo, campo ausente, merchant desconhecido ou pedido antes de `live_on` é erro da linha; o restante do arquivo continua.
+Amount zero passa. Amount negativo, campo ausente, merchant desconhecido ou pedido antes de `live_on` é erro da linha. Um erro de linha desfaz o arquivo inteiro. Nada desse CSV entra.
 
 ```mermaid
 flowchart TD
@@ -117,7 +117,7 @@ Relatório anual lê `disbursements` e `monthly_fees` (milhares de linhas), sín
 - CORS: não instalo. Não há outro origin.
 - Rate limit com `rack-attack`: login e POST de import.
 - SSRF: o upload é arquivo, nunca URL vinda do usuário. O CSV oficial entra por host fixo `sequra.github.io`, escrito no código. Sem HTTP para destino informado no form.
-- Senha com Devise, só login. O seed cria o operador em qualquer ambiente. Sem `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`, usa `operator@lagom.local` e `lagom-operator-password`. As variáveis só trocam esses valores.
+- Senha com Devise, só login. O seed não cria usuário.
 - `/jobs` só abre com o operador logado. Sem isso o painel de fila ficaria público.
 
 ## Ambientes e Railway
@@ -125,7 +125,7 @@ Relatório anual lê `disbursements` e `monthly_fees` (milhares de linhas), sín
 - **test** e **development**: locais. `docker-compose.yml` só com Postgres.
 - **staging** e **production**: Railway, dois environments, dois Postgres, `RAILS_ENV` próprio (`config/environments/staging.rb` parte de production).
 - Processos: web (Puma) e um worker (`bin/jobs`). Em `config/queue.yml`, development, staging e production ficam com 1 processo e 1 thread. Só um job executa por vez. O supervisor do Solid Queue continua, porque sem ele não há worker nem recurring. Volume compartilhado para o CSV enviado, porque disco de container não é compartilhado e o arquivo tem dezenas de MB.
-- Release: `bin/rails db:migrate db:seed`. Seed idempotente e barato: só o operador. Não baixa nem reimporta o CSV. `db:prepare` sozinho não rodaria seed em banco já existente; por isso migrate e seed ficam explícitos no release.
+- Release: `bin/rails db:prepare`. Não cria operador e não reimporta o CSV.
 - Recurring em `config/recurring.yml`: 07:00 UTC.
 
 ## CI/CD
