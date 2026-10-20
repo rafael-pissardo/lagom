@@ -1,4 +1,4 @@
-class ChargeMonthlyFee
+class ChargeMonthlyFeeService
   def self.call(merchant:, year:, month:)
     new(merchant:, year:, month:).call
   end

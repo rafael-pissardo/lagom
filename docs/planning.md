@@ -59,12 +59,12 @@ A zero amount is accepted. A negative amount, a missing field, an unknown mercha
 
 ```mermaid
 flowchart TD
-  upload[ImportCsv] --> importJob[ImportCsvJob]
+  upload[ImportCsvService] --> importJob[ImportCsvJob]
   importJob --> merchants[Merchant]
   importJob --> orders[Order]
   importJob --> backfill[BackfillSettlementsJob]
-  cron[DailySettlementJob_07UTC] --> disburse[DisburseMerchant]
-  cron --> monthly[ChargeMonthlyFee]
+  cron[DailySettlementJob_07UTC] --> disburse[DisburseMerchantService]
+  cron --> monthly[ChargeMonthlyFeeService]
   backfill --> disburse
   backfill --> monthly
   disburse --> disbursements[Disbursement]

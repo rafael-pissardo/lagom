@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe DailySettlement do
+RSpec.describe DailySettlementService do
   it "disburses eligible merchants and charges monthly fees on the first day" do
     merchant = create(:merchant, reference: "daily_settle", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 100)
     create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 30), amount_cents: 5_000)

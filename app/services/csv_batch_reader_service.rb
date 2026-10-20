@@ -1,6 +1,6 @@
 require "csv"
 
-class CsvBatchReader
+class CsvBatchReaderService
   def self.each(io:, batch_size:)
     CSV.new(io, headers: true, col_sep: ";")
       .each_with_index

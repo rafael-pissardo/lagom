@@ -1,4 +1,4 @@
-class YearlyReport
+class YearlyReportService
   Row = Data.define(
     :year,
     :disbursements_count,

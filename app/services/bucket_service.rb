@@ -1,6 +1,6 @@
 require "aws-sdk-s3"
 
-class Bucket
+class BucketService
   class Error < StandardError; end
 
   LOCAL_DEFAULTS = {

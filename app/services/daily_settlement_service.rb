@@ -1,4 +1,4 @@
-class DailySettlement
+class DailySettlementService
   def self.call(as_of: Time.zone.today)
     new(as_of:).call
   end
@@ -12,7 +12,7 @@ class DailySettlement
 
     previous_month = as_of.beginning_of_month.prev_month
     Merchant.find_each do |merchant|
-      ChargeMonthlyFee.call(
+      ChargeMonthlyFeeService.call(
         merchant: merchant,
         year: previous_month.year,
         month: previous_month.month
@@ -30,7 +30,7 @@ class DailySettlement
     return if start_on > as_of
 
     start_on.upto(as_of) do |day|
-      DisburseMerchant.call(merchant: merchant, as_of: day)
+      DisburseMerchantService.call(merchant: merchant, as_of: day)
     end
   end
 end

@@ -5,7 +5,7 @@ RSpec.describe "CsvImports failures", type: :request do
     user = create(:user)
     post user_session_path, params: { user: { email: user.email, password: "password123456" } }
 
-    expect(Bucket).not_to receive(:put)
+    expect(BucketService).not_to receive(:put)
 
     post csv_imports_path, params: { csv_import: { kind: "", file: nil } }
 

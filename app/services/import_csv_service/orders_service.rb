@@ -1,5 +1,5 @@
-class ImportCsv::Orders
-  include ImportCsv::CsvRow
+class ImportCsvService::OrdersService
+  include ImportCsvService::CsvRow
 
   def self.csv_headers
     COLUMNS.values.uniq
@@ -41,7 +41,7 @@ class ImportCsv::Orders
   def attributes(row, line_number)
     reference = value(row, "merchant_reference", line_number)
     merchant = merchant_cache.fetch(reference)
-    raise ImportCsv::RowError.new(line_number, "merchant_reference", "is unknown") if merchant.nil?
+    raise ImportCsvService::RowError.new(line_number, "merchant_reference", "is unknown") if merchant.nil?
 
     amount_cents = money_value(row, "amount", line_number)
     external_id = value(row, "id", line_number)
@@ -70,7 +70,7 @@ class ImportCsv::Orders
     parsed = []
     errors = batch.each_with_object([]) do |(row, line_number), found|
       parsed << [ line_number, attributes(row, line_number) ]
-    rescue ImportCsv::RowError => error
+    rescue ImportCsvService::RowError => error
       found << row_error(error)
     end
     [ parsed, errors ]

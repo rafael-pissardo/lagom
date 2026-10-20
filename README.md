@@ -69,7 +69,7 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 - A run pays every eligible day up to that day, one disbursement per day. Daily merchants get each missed day. Weekly merchants get only the weekday of `live_on`. An order belongs to one disbursement. Orders in that disbursement have `ordered_on <=` the day before it, and `ordered_on >= live_on`.
 - Commission is calculated per order and rounded up to the next cent: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%.
 - Net to merchant = gross − order commissions. Monthly fees are stored, not subtracted.
-- Every run closes the previous calendar month when that fee does not exist yet. `ChargeMonthlyFee` does not create a second row for the same merchant and month.
+- Every run closes the previous calendar month when that fee does not exist yet. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month.
 - A month with no commissions, inside the closed range, is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
 - Backfill uses the CSV clock (`max(ordered_on)`), so November 2023 orders are disbursed and November 2023 monthly fees are not charged.
 
@@ -82,7 +82,7 @@ The page filters by year as you type, sorts every column, and pages 10 years at 
 After importing and backfilling, open **Yearly report** or run:
 
 ```bash
-bin/rails runner 'puts YearlyReport.call.inspect'
+bin/rails runner 'puts YearlyReportService.call.inspect'
 ```
 
 | Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Amount of monthly fees charged |

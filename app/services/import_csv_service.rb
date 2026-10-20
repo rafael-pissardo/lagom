@@ -1,4 +1,4 @@
-class ImportCsv
+class ImportCsvService
   class RowError < StandardError
     attr_reader :line, :column
 
@@ -12,8 +12,8 @@ class ImportCsv
   class Rejected < StandardError; end
 
   STRATEGIES = {
-    "merchants" => Merchants,
-    "orders" => Orders
+    "merchants" => MerchantsService,
+    "orders" => OrdersService
   }.freeze
   BOM = "\xEF\xBB\xBF".b
   ALLOWED_CHARACTERS = /\A[\nA-Za-z0-9.;@_-]*\z/
@@ -62,7 +62,7 @@ class ImportCsv
   end
 
   def import_file
-    Bucket.open(csv_import.object_key) do |io|
+    BucketService.open(csv_import.object_key) do |io|
       raw = io.read
       io.rewind
       return false unless acceptable_file?(raw)
@@ -144,7 +144,7 @@ class ImportCsv
   end
 
   def each_batch(io)
-    CsvBatchReader.each(io:, batch_size: self.class.batch_size) { |batch| yield batch }
+    CsvBatchReaderService.each(io:, batch_size: self.class.batch_size) { |batch| yield batch }
   end
 
   def strategy
@@ -152,7 +152,7 @@ class ImportCsv
   end
 
   def merchant_cache
-    @merchant_cache ||= MerchantCache.new(batch_size: self.class.batch_size)
+    @merchant_cache ||= MerchantCacheService.new(batch_size: self.class.batch_size)
   end
 
   def finish_success

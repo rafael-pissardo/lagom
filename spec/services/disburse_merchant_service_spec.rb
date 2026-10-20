@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe DisburseMerchant do
+RSpec.describe DisburseMerchantService do
   describe ".call" do
     it "creates a daily disbursement for yesterday's undisbursed orders" do
       merchant = create(
@@ -54,7 +54,7 @@ RSpec.describe DisburseMerchant do
 
       expect {
         described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
-      }.to raise_error(DisburseMerchant::AssociationError, "associated 0 of 1 orders")
+      }.to raise_error(DisburseMerchantService::AssociationError, "associated 0 of 1 orders")
 
       expect(Disbursement.count).to eq(0)
       expect(order.reload.disbursement_id).to be_nil

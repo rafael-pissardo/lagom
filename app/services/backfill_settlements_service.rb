@@ -1,4 +1,4 @@
-class BackfillSettlements
+class BackfillSettlementsService
   # The day an undisbursed order is paid when nothing is in the way:
   # daily merchants the next day, weekly merchants the next live_on weekday.
   # EXTRACT(DOW) and Date#wday both count Sunday as 0.
@@ -199,7 +199,7 @@ class BackfillSettlements
     last_closed_month = as_of.beginning_of_month.prev_month
 
     while month_cursor <= last_closed_month
-      ChargeMonthlyFee.call(merchant: merchant, year: month_cursor.year, month: month_cursor.month)
+      ChargeMonthlyFeeService.call(merchant: merchant, year: month_cursor.year, month: month_cursor.month)
       month_cursor = month_cursor.next_month
     end
   end

@@ -25,7 +25,7 @@ RSpec.describe "CsvImports", type: :request do
     user = create(:user)
     post user_session_path, params: { user: { email: user.email, password: "password123456" } }
     stored = {}
-    allow(Bucket).to receive(:put) { |key:, body:| stored[key] = body.read }
+    allow(BucketService).to receive(:put) { |key:, body:| stored[key] = body.read }
 
     travel_to Time.utc(2026, 10, 19, 11, 21, 3) do
       expect {
@@ -51,7 +51,7 @@ RSpec.describe "CsvImports", type: :request do
   it "does not create an import when the bucket rejects the file" do
     user = create(:user)
     post user_session_path, params: { user: { email: user.email, password: "password123456" } }
-    allow(Bucket).to receive(:put).and_raise(Bucket::Error, "unavailable")
+    allow(BucketService).to receive(:put).and_raise(BucketService::Error, "unavailable")
 
     expect {
       post csv_imports_path, params: {
