@@ -2,60 +2,60 @@ This is the V0 planning document for Lagom.
 
 # Lagom — Merchant Settlement Engine
 
-App novo em `[/home/rpissardo/lagom](/home/rpissardo/lagom)`, fora de `international-companies-frontend`. Repositório GitHub **privado** na conta pessoal (`gh repo create lagom --private`). Se a conta do `gh` não for a pessoal, paro antes de criar.
+New app in `[/home/rpissardo/lagom](/home/rpissardo/lagom)`, outside `international-companies-frontend`. Private GitHub repository on the personal account (`gh repo create lagom --private`). If the `gh` account is not the personal one, stop before creating it.
 
-Stack: **Ruby 4.0.7** (estável; 4.1.0 ainda é preview) e **Rails 8.1.4**. Se o `rails new` não subir em Ruby 4.0, paro e aviso — não troco silencioso para 3.4. Postgres. Solid Queue em development, staging e production. Teste usa o adapter do ActiveJob para o spec ficar rápido e afirmar `have_enqueued_job`.
+Stack: **Ruby 4.0.7** (stable; 4.1.0 is still a preview) and **Rails 8.1.4**. If `rails new` does not boot on Ruby 4.0, stop and say so. Do not silently fall back to 3.4. Postgres. Solid Queue in development, staging, and production. Test uses the Active Job test adapter so specs stay fast and can assert `have_enqueued_job`.
 
-## O que o texto fecha
+## What the brief decides
 
-Fonte: [seQura backend challenge](https://sequra.github.io/backend-challenge/) e os CSV oficiais (`merchants.csv`, `orders.csv`, separador `;`).
+Source: [seQura backend challenge](https://sequra.github.io/backend-challenge/) and the official CSVs (`merchants.csv`, `orders.csv`, separator `;`).
 
-- 50 merchants (`live_on` de 2022-09-04 a 2023-02-01; 36 DAILY, 14 WEEKLY) e 1.309.023 orders (`created_at` de 2022-09-04 a 2023-11-07).
-- Commission por pedido: abaixo de 50 € = 1%; de 50 € inclusive até abaixo de 300 € = 0,95%; 300 € ou mais = 0,85%.
-- Arredondar **para cima** a 2 casas em cada commission.
-- Líquido do merchant = bruto dos pedidos − commissions. Monthly fee não entra nesse líquido.
-- Monthly fee no início do mês seguinte: se a soma das commissions do mês civil anterior for menor que `minimum_monthly_fee`, guardar a diferença. Sem pró-rata. Mês sem commission, dentro do intervalo fechado abaixo, cobra o mínimo cheio.
-- Job diário **concluído até** 08:00 UTC. Por isso o recurring do Solid Queue dispara às **07:00 UTC**, não às 08:00.
-- Pedido anterior a `live_on` é linha inválida. Pedido com `ordered_on >= live_on` entra.
-- Sem pedidos na janela, não cria disbursement.
+- 50 merchants (`live_on` from 2022-09-04 to 2023-02-01; 36 DAILY, 14 WEEKLY) and 1,309,023 orders (`created_at` from 2022-09-04 to 2023-11-07).
+- Commission per order: below 50 € = 1%; from 50 € inclusive up to but not including 300 € = 0.95%; 300 € or more = 0.85%.
+- Round **up** to 2 decimal places on every commission.
+- Merchant net = order gross − commissions. The monthly fee is not part of that net.
+- Monthly fee at the start of the next month: if the previous calendar month's commissions are below `minimum_monthly_fee`, store the difference. No pro-rata. A month with no commission, inside the closed range below, is charged the full minimum.
+- The daily job must **finish by** 08:00 UTC. Solid Queue recurring therefore fires at **07:00 UTC**, not at 08:00.
+- An order before `live_on` is an invalid row. An order with `ordered_on >= live_on` is accepted.
+- No orders in the window means no disbursement.
 
-## Três ajustes em cima da leitura combinada
+## Three adjustments on top of that reading
 
-- **Relógio do backfill.** O CSV acaba em 2023-11-07. Se o cron usar “hoje” (2026-10-16), o catch-up de mês zerado criaria mínimos de 2024 até 2026 e dominaria o relatório. O import não usa essa data. Disbursement e monthly fee têm relógios diferentes. O pedido de 2023-11-07 só fica elegível na manhã seguinte (diário) ou no próximo weekday de `live_on` (semanal, no máximo 7 dias depois). O backfill de disbursement simula cada dia de `live_on` até 2023-11-14. Sem pedido na janela, não cria disbursement. Monthly fee só fecha mês cujo dia 1 do mês seguinte já passou nesse mundo: por merchant, do mês de `live_on` até outubro/2023. Novembro/2023 tem pedidos e não tem monthly fee, porque 2023-12-01 não chega, e o cron ao vivo não volta para cobrá-lo. O cron ao vivo, depois do deploy, fecha só o dia devido e o mês anterior imediato. Não varre os anos em que o sistema não existia. Se o app seguir no ar, o primeiro monthly fee ao vivo sai em 2026-11-01, referente a outubro/2026, no mínimo cheio.
-- **Janela rígida perde pedido.** A janela normal do diário é `ordered_on = ontem`. A do semanal, no weekday de `live_on`, é `D-7..D-1`. A query de produção pega **não disbursed** com `ordered_on <= ontem` e `ordered_on >= live_on`, e o semanal só roda no weekday certo. Com o job em dia, o conjunto é a janela. Se um dia falhar, o próximo run alcança o atraso. Isso é o que torna verdadeiro o “exactly once”.
-- **Sem notificação em GET.** Toda ação que altera estado (POST/PATCH/DELETE), toda falha e todo aceite assíncrono devolvem flash positiva ou negativa. GET de leitura ok não mostra toast. O fim do job atualiza a tela do import por Turbo Stream.
+- **Backfill clock.** The CSV ends on 2023-11-07. If the cron used "today" (2026-10-16), zero-commission catch-up would create minimums from 2024 through 2026 and dominate the report. The import does not use that date. Disbursement and monthly fee use different clocks. The order of 2023-11-07 becomes eligible the next morning (daily) or on the next `live_on` weekday (weekly, at most 7 days later). Disbursement backfill simulates each day from `live_on` through 2023-11-14. No orders in the window means no disbursement. A monthly fee closes only a month whose 1st of the following month has already passed in that world: per merchant, from the `live_on` month through October 2023. November 2023 has orders and no monthly fee, because 2023-12-01 never arrives, and the live cron does not go back to charge it. After deploy, the live cron closes only the due day and the immediately previous month. It does not scan the years when the system did not exist. If the app stays up, the first live monthly fee is on 2026-11-01, for October 2026, at the full minimum.
+- **A rigid window drops orders.** The normal daily window is `ordered_on = yesterday`. The weekly window, on the `live_on` weekday, is `D-7..D-1`. The production query takes **undisbursed** orders with `ordered_on <= yesterday` and `ordered_on >= live_on`, and the weekly merchant runs only on the right weekday. When the job is on time, that set is the window. If a day fails, the next run catches up. That is what makes "exactly once" true.
+- **No notification on GET.** Every state-changing action (POST/PATCH/DELETE), every failure, and every async acceptance returns a positive or negative flash. A successful read GET shows no toast. When the job finishes, a Turbo Stream updates the import screen.
 
-Não há formulário manual de pedido. Pedido novo entra por outro CSV; o job diário disbursa o que já está gravado.
+There is no manual order form. A new order arrives through another CSV. The daily job disburses what is already stored.
 
-## Dinheiro
+## Money
 
-Módulo `Finance::Amount`, em centavos, com `Integer` (precisão arbitrária do Ruby). Cabe em outro fluxo depois: centavos, teto a 2 casas e formatação em euro. Não uso a gem Money: a regra é teto, não o arredondamento padrão da gem, e só existe EUR. A faixa de 1% / 0,95% / 0,85% fica em `Commission`, que chama `Finance::Amount`. Essa faixa é regra deste produto, não do módulo de dinheiro.
+`Finance::Amount`, in cents, using `Integer` (Ruby's arbitrary precision). It can be reused later: cents, a ceiling at 2 decimal places, and euro formatting. The Money gem is not used. The rule is a ceiling, not the gem's default rounding, and the only currency is EUR. The 1% / 0.95% / 0.85% bands live in `Commission`, which calls `Finance::Amount`. Those bands are a rule of this product, not of the money module.
 
-`0,95%` de 61,74 €: `(6174 * 95).ceildiv(10_000) = 59` centavos = 0,59 €. Sem `Float`.
+`0.95%` of 61.74 €: `(6174 * 95).ceildiv(10_000) = 59` cents = 0.59 €. No `Float`.
 
-Colunas `*_cents` integer, `null: false`, check `>= 0`. A commission do pedido é calculada uma vez na importação e persistida. O disbursement soma esses centavos.
+`*_cents` columns are integers, `null: false`, check `>= 0`. An order's commission is calculated once at import and stored. A disbursement sums those cents.
 
-## Modelo
+## Model
 
-Não há N×N no domínio. “Exactly once” é `orders.disbursement_id`, não tabela de junção. Junção permitiria o mesmo pedido em dois disbursements.
+There is no N×N in the domain. "Exactly once" is `orders.disbursement_id`, not a join table. A join would allow the same order on two disbursements.
 
-- `merchants` — `id` uuid vindo do CSV. `reference` único, `email`, `live_on` date, `disbursement_frequency` (`DAILY`/`WEEKLY`), `minimum_monthly_fee_cents`.
-- `orders` — `id` uuid gerado. O id do CSV (12 hex no sample, não é uuid) fica em `external_id` único. `merchant_id`, `ordered_on` date, `amount_cents`, `commission_cents`, `disbursement_id` nulo até pagar. A coluna `created_at` do CSV entra em `ordered_on`. `t.timestamps` segue com `created_at` / `updated_at` para a linha no banco.
-- `disbursements` — uuid, `merchant_id`, `disbursed_on`, `reference` único (`{reference}{YYYYMMDD}`, só letras, números e o underscore que o reference do merchant já tem), `gross_cents`, `commission_cents`, `net_cents`. Único `(merchant_id, disbursed_on)`.
-- `monthly_fees` — uuid, `merchant_id`, `year`, `month`, `commissions_cents`, `charged_cents`. Único `(merchant_id, year, month)`. Linha com `charged_cents = 0` significa “mês avaliado, nada cobrado” e segura a idempotência. O relatório conta só `charged_cents > 0`.
-- `users` — operador, model `User` com Devise (`database_authenticatable` e `validatable`). Sem cadastro público, sem recuperação de senha, sem confirmação e sem bloqueio.
-- `csv_imports` — status do job (`pending`, `processing`, `succeeded`, `failed`), contadores, erros limitados.
+- `merchants` — `id` is the UUID from the CSV. Unique `reference`, `email`, `live_on` date, `disbursement_frequency` (`DAILY`/`WEEKLY`), `minimum_monthly_fee_cents`.
+- `orders` — generated UUID `id`. The CSV id (12 hex characters in the sample, not a UUID) is stored in a unique `external_id`. `merchant_id`, `ordered_on` date, `amount_cents`, `commission_cents`, `disbursement_id` null until paid. The CSV `created_at` column becomes `ordered_on`. `t.timestamps` still keeps `created_at` / `updated_at` for the database row.
+- `disbursements` — uuid, `merchant_id`, `disbursed_on`, unique `reference` (`{reference}{YYYYMMDD}`, letters, digits, and the underscore the merchant reference already has), `gross_cents`, `commission_cents`, `net_cents`. Unique `(merchant_id, disbursed_on)`.
+- `monthly_fees` — uuid, `merchant_id`, `year`, `month`, `commissions_cents`, `charged_cents`. Unique `(merchant_id, year, month)`. A row with `charged_cents = 0` means "month evaluated, nothing charged" and keeps the operation idempotent. The report counts only `charged_cents > 0`.
+- `users` — the operator, a Devise `User` (`database_authenticatable` and `validatable`). No public signup, no password recovery, no confirmation, and no lock.
+- `csv_imports` — job status (`pending`, `processing`, `succeeded`, `failed`), counters, bounded errors.
 
-FKs `on_delete: :restrict`. Datas de negócio em UTC (`config.time_zone = "UTC"`).
+Foreign keys use `on_delete: :restrict`. Business dates are UTC (`config.time_zone = "UTC"`).
 
-Indexes, alinhados às validações e às buscas:
+Indexes, aligned with validations and lookups:
 
-- únicos: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `users.email`
+- unique: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `users.email`
 - job: `(orders.merchant_id, ordered_on) WHERE disbursement_id IS NULL`
-- listas: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
-- checks: frequency em `DAILY`/`WEEKLY`, centavos `>= 0`, presença via `null: false`
+- lists: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
+- checks: frequency in `DAILY`/`WEEKLY`, cents `>= 0`, presence via `null: false`
 
-Amount zero passa. Amount negativo, campo ausente, merchant desconhecido ou pedido antes de `live_on` é erro da linha; o restante do arquivo continua.
+A zero amount is accepted. A negative amount, a missing field, an unknown merchant, or an order before `live_on` is a row error. One row error rolls the whole file back. Nothing from that CSV is stored.
 
 ```mermaid
 flowchart TD
@@ -72,93 +72,91 @@ flowchart TD
   monthly --> fees[MonthlyFee]
 ```
 
+## Screens
 
+Tailwind and Hotwire. The palette comes from the public CSS of [railway.com](https://railway.com/): background `#08070C`, surface `#13111C`, text `#F0EAF2`, accent `#A898F0`, supporting purples `#2C0A5C` and `#16093B`, white border at about 8% opacity. Inter for UI text. JetBrains Mono for numbers and euro amounts. One dark theme. No Railway logo or illustration.
 
-## Telas
+Screens do not style one-off elements. Everything goes through a small ViewComponent kit:
 
-Tailwind e Hotwire. A paleta sai do CSS público de [railway.com](https://railway.com/): fundo `#08070C`, superfície `#13111C`, texto `#F0EAF2`, acento `#A898F0`, roxos de apoio `#2C0A5C` e `#16093B`, borda branca a cerca de 8% de opacidade. Fonte de interface Inter. Números e valores em euro com JetBrains Mono. Tema escuro único. Sem logo nem ilustração da Railway.
-
-As telas não estilizam elemento solto. Tudo passa por um kit pequeno de ViewComponents:
-
-- `AppShell` — barra lateral e topo
+- `AppShell` — sidebar and top
 - `PageHeader`
 - `Button` — primary, secondary, danger
 - `Card`
-- `Badge` — frequência, status do import, fee cobrada ou zero
+- `Badge` — frequency, import status, charged or zero fee
 - `DataTable`
-- `Stat` — números do relatório anual
+- `Stat` — yearly report figures
 - `EmptyState`
-- `Flash` — `role="status"` ou `role="alert"`
-- `Field` — label, input e erro
-- `Money` — centavos formatados em euro
+- `Flash` — `role="status"` or `role="alert"`
+- `Field` — label, input, and error
+- `Money` — cents formatted as euros
 
-Inglês desde o início, via I18n do Rails. `config.i18n.default_locale` e `available_locales` ficam em `:en`. Texto de tela, flash, validação, botão e estado vazio saem de `config/locales/en.yml` com `I18n.t`. ViewComponent também. Sem string fixa na view. O README segue em inglês.
+English from the start, through Rails I18n. `config.i18n.default_locale` and `available_locales` stay `:en`. Screen copy, flashes, validations, buttons, and empty states come from `config/locales/en.yml` via `I18n.t`. ViewComponents do the same. No hardcoded string in a view. The README stays in English.
 
-Autenticado, um operador, vê todos os merchants (o enunciado não tem papel por merchant):
+Once signed in, one operator sees every merchant (the brief has no per-merchant role):
 
-- Merchants: lista e detalhe
-- Orders do merchant, paginados, com commission
-- Disbursements: lista e detalhe (pedidos, bruto, commission, líquido)
+- Merchants: list and detail
+- That merchant's orders, paginated, with commission
+- Disbursements: list and detail (orders, gross, commission, net)
 - Monthly fees
-- Relatório anual com as colunas do desafio
-- Import de CSV: o POST responde na hora com notice de processamento; a show acompanha o status e o Turbo Stream troca para sucesso ou falha
-- Mission Control (`mission_control-jobs`) montado em `/jobs`, para ver fila, recurring e falhas do Solid Queue. O engine herda um controller que exige a sessão do operador. O HTTP basic da gem fica desligado, para não criar uma segunda senha. A UI interna da gem permanece a dela. O shell em volta usa `AppShell`.
+- Yearly report with the challenge columns
+- CSV import: the POST returns immediately with a processing notice; the show page follows the status and a Turbo Stream switches it to success or failure
+- Mission Control (`mission_control-jobs`) mounted at `/jobs`, to see the Solid Queue queue, recurring tasks, and failures. The engine inherits a controller that requires the operator session. The gem's HTTP basic auth is off, so there is no second password. The gem's own UI stays as it is. The surrounding shell uses `AppShell`.
 
-Estados vazios usam `EmptyState`. Erro de validação usa `Field`. Flash usa `Flash`.
+Empty states use `EmptyState`. Validation errors use `Field`. Flashes use `Flash`.
 
-Relatório anual lê `disbursements` e `monthly_fees` (milhares de linhas), síncrono. Import e backfill passam de 0,5 s: Solid Queue, resposta imediata.
+The yearly report reads `disbursements` and `monthly_fees` (thousands of rows) synchronously. Import and backfill take more than 0.5 s: Solid Queue, with an immediate response.
 
-## Segurança
+## Security
 
-- SQL: ActiveRecord e binds. Sem interpolar parâmetro em SQL.
-- XSS: escape padrão, sem `html_safe` / `raw`.
-- CSRF: `protect_from_forgery` do Rails.
-- Sessão do Devise no cookie do Rails, httponly, `same_site: :lax`, `force_ssl` em staging e production.
-- CORS: não instalo. Não há outro origin.
-- Rate limit com `rack-attack`: login e POST de import.
-- SSRF: o upload é arquivo, nunca URL vinda do usuário. O CSV oficial entra por host fixo `sequra.github.io`, escrito no código. Sem HTTP para destino informado no form.
-- Senha com Devise, só login. O seed cria o operador em qualquer ambiente. Sem `OPERATOR_EMAIL` e `OPERATOR_PASSWORD`, usa `operator@lagom.local` e `lagom-operator-password`. As variáveis só trocam esses valores.
-- `/jobs` só abre com o operador logado. Sem isso o painel de fila ficaria público.
+- SQL: ActiveRecord and binds. No interpolated parameter in SQL.
+- XSS: default escaping, no `html_safe` / `raw`.
+- CSRF: Rails `protect_from_forgery`.
+- Devise session in the Rails cookie, httponly, `same_site: :lax`, `force_ssl` in staging and production.
+- CORS: not installed. There is no other origin.
+- Rate limit with `rack-attack`: login and the import POST.
+- SSRF: the upload is a file, never a URL from the user. The official CSV comes from the fixed host `sequra.github.io`, written in code. No HTTP call to a destination typed into the form.
+- Password with Devise, login only. The seed does not create a user.
+- `/jobs` opens only for a signed-in operator. Otherwise the queue dashboard would be public.
 
-## Ambientes e Railway
+## Environments and Railway
 
-- **test** e **development**: locais. `docker-compose.yml` só com Postgres.
-- **staging** e **production**: Railway, dois environments, dois Postgres, `RAILS_ENV` próprio (`config/environments/staging.rb` parte de production).
-- Processos: web (Puma) e um worker (`bin/jobs`). Em `config/queue.yml`, development, staging e production ficam com 1 processo e 1 thread. Só um job executa por vez. O supervisor do Solid Queue continua, porque sem ele não há worker nem recurring. Volume compartilhado para o CSV enviado, porque disco de container não é compartilhado e o arquivo tem dezenas de MB.
-- Release: `bin/rails db:migrate db:seed`. Seed idempotente e barato: só o operador. Não baixa nem reimporta o CSV. `db:prepare` sozinho não rodaria seed em banco já existente; por isso migrate e seed ficam explícitos no release.
-- Recurring em `config/recurring.yml`: 07:00 UTC.
+- **test** and **development**: local. `docker-compose.yml` with Postgres only.
+- **staging** and **production**: Railway, two environments, two Postgres databases, its own `RAILS_ENV` (`config/environments/staging.rb` starts from production).
+- Processes: web (Puma) and one worker (`bin/jobs`). In `config/queue.yml`, development, staging, and production use 1 process and 1 thread. Only one job runs at a time. The Solid Queue supervisor stays, because without it there is no worker and no recurring task. Shared volume for the uploaded CSV, because a container disk is not shared and the file is tens of MB.
+- Release: `bin/rails db:prepare`. It does not create an operator and does not reimport the CSV.
+- Recurring in `config/recurring.yml`: 07:00 UTC.
 
 ## CI/CD
 
-GitHub Actions em `.github/workflows/ci.yml`. Em pull request e em push, quatro jobs sem `needs` entre eles:
+GitHub Actions in `.github/workflows/ci.yml`. On pull request and on push, four jobs with no `needs` between them:
 
-- **rspec** — `bundle exec rspec`, Postgres de serviço, ordem aleatória, formato documentation.
-- **rubocop** — `rubocop-rails-omakase`, o conjunto que o Rails 8 já traz.
-- **vulnerability** — `bundler-audit` contra o advisory de gems e `brakeman` no código. Qualquer achado falha o job.
-- **coverage** — a mesma suíte com SimpleCov. Falha abaixo de 95% de cobertura de linha. Roda em paralelo com o job de rspec, então a suíte executa duas vezes.
+- **rspec** — `bundle exec rspec`, a Postgres service, random order, documentation format.
+- **rubocop** — `rubocop-rails-omakase`, the set Rails 8 already ships.
+- **vulnerability** — `bundler-audit` against the gem advisory database and `brakeman` on the code. Any finding fails the job.
+- **coverage** — the same suite with SimpleCov. It fails below 95% line coverage. It runs in parallel with the rspec job, so the suite runs twice.
 
-O deploy espera os quatro. Branch `staging` publica o environment staging do Railway. Branch `main` publica production. Pull request não faz deploy.
+Deploy waits for all four. Branch `staging` publishes the Railway staging environment. Branch `main` publishes production. A pull request does not deploy.
 
-## Testes
+## Tests
 
-RSpec e FactoryBot. `config.order = :random` em `spec/spec_helper.rb`. `.rspec` com `--format documentation`, `--require spec_helper` e `--color`, para o output listar cada exemplo pelo nome, inclusive no CI. Sem Faker em valor monetário.
+RSpec and FactoryBot. `config.order = :random` in `spec/spec_helper.rb`. `.rspec` uses `--format documentation`, `--require spec_helper`, and `--color`, so the output lists each example by name, including in CI. No Faker on monetary values.
 
-TDD nos cálculos, antes da implementação:
+TDD on the calculations, before the implementation:
 
-- faixas e teto, inclusive 50 € e 300 €
-- janela diária, semanal, primeiro ciclo depois de `live_on`, catch-up de dia perdido
-- exactly once e repetir o job não duplica
-- monthly fee: abaixo, igual, acima, mês zerado, mês parcial sem pró-rata, novembro/2023 fora do relógio do arquivo
-- linha inválida não derruba o arquivo
+- bands and ceiling, including 50 € and 300 €
+- daily window, weekly window, first cycle after `live_on`, catch-up of a missed day
+- exactly once, and running the job again does not duplicate
+- monthly fee: below, equal, above, a zero month, a partial month with no pro-rata, November 2023 outside the file clock
+- one invalid row rolls the whole file back
 
-System spec só no crítico, com CSV pequeno: login, import que mostra “processing” e termina em sucesso ou falha, relatório anual com os números da fixture. O CSV de 1,3 milhão não entra em spec.
+System spec only for the critical path, with a small CSV: sign in, an import that shows "processing" and ends in success or failure, yearly report with the fixture numbers. The 1.3 million row CSV is not in the spec.
 
 ## README
 
-Título `Lagom — Merchant Settlement Engine`. Significado de lagom (equilíbrio, medida certa, origem sueca, cálculo justo). Setup, decisões, premissas, o que não foi feito (sem form de pedido, sem CORS, UI em inglês via I18n), tabela anual preenchida depois de rodar o import local no relógio do arquivo, e como a IA entrou (Cursor para planejar e implementar; regras de negócio só as escritas no desafio e as confirmadas aqui).
+Title `Lagom — Merchant Settlement Engine`. Meaning of lagom (balance, the right measure, Swedish origin, a fair calculation). Setup, decisions, premises, what was left out (no order form, no CORS, English UI via I18n), the yearly table filled after a local import on the file clock, and how the AI was used (Cursor to plan and implement; business rules only from the challenge text and from what was confirmed here).
 
-Tradeoffs da próxima versão, nesta ordem:
+Tradeoffs for the next version, in this order:
 
-- **P0.** Não há serviço de log, como Datadog. Hoje o contorno são os logs do servidor.
-- **P1.** O Railway está no plano Hobby. Não deve aguentar grande carga de dados ou de usuários. A próxima versão avalia como a infra se comporta.
-- **P2.** Os CSVs não vão para um bucket. Depois do processamento, o arquivo deixa de ser rastreável.
+- **P0.** There is no logging service, such as Datadog. Server logs are the workaround today.
+- **P1.** Railway is on the Hobby plan. It should not absorb a large data or user load. The next version measures how the infra behaves.
+- **P2.** CSVs are not stored in a bucket. After processing, the file can no longer be traced.

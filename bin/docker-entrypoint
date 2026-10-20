@@ -1,9 +1,7 @@
 #!/bin/bash -e
 
-# db:prepare seeds only when the database is first created.
-# Production boots must still create the operator on later deploys.
 if [[ " $* " == *" bin/rails server "* || " $* " == *" ./bin/rails server "* || " $* " == *" rails server "* ]]; then
-  ./bin/rails db:prepare db:seed
+  ./bin/rails db:prepare
 fi
 
 exec "${@}"
