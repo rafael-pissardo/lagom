@@ -17,4 +17,8 @@ class Merchant < ApplicationRecord
   def live_on_weekday
     live_on.wday
   end
+
+  def settles_on?(day)
+    daily? || day.wday == live_on_weekday
+  end
 end
