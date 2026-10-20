@@ -25,4 +25,24 @@ RSpec.describe YearlyReport do
     expect(rows.first.monthly_fees_count).to eq(1)
     expect(rows.first.monthly_fees_amount_cents).to eq(5)
   end
+
+  it "counts a 31/12 order disbursed on 01/01 in the next year, and the December fee in 2022" do
+    merchant = create(:merchant, reference: "nye_co", live_on: Date.new(2022, 12, 1), minimum_monthly_fee_cents: 100)
+    create(:order, merchant: merchant, ordered_on: Date.new(2022, 12, 31), amount_cents: 5_000)
+
+    DailySettlement.call(as_of: Date.new(2023, 1, 1))
+
+    rows = described_class.call.index_by(&:year)
+
+    expect(rows[2022].disbursements_count).to eq(0)
+    expect(rows[2022].amount_disbursed_cents).to eq(0)
+    expect(rows[2022].order_fees_cents).to eq(0)
+    expect(rows[2022].monthly_fees_count).to eq(1)
+    expect(rows[2022].monthly_fees_amount_cents).to eq(52)
+    expect(rows[2023].disbursements_count).to eq(1)
+    expect(rows[2023].amount_disbursed_cents).to eq(4_952)
+    expect(rows[2023].order_fees_cents).to eq(48)
+    expect(rows[2023].monthly_fees_count).to eq(0)
+    expect(rows[2024]).to be_nil
+  end
 end

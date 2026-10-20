@@ -8,6 +8,11 @@ RSpec.describe Finance::Amount do
       expect(described_class.from_decimal_string("0.09")).to eq(9)
     end
 
+    it "keeps the first two decimal digits and drops the rest" do
+      expect(described_class.from_decimal_string("1.239")).to eq(123)
+      expect(described_class.from_decimal_string("1.231")).to eq(123)
+    end
+
     it "rejects blank and invalid values" do
       expect { described_class.from_decimal_string("") }.to raise_error(ArgumentError)
       expect { described_class.from_decimal_string("abc") }.to raise_error(ArgumentError)
