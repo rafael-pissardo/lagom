@@ -15,6 +15,8 @@ class ImportCsv
     "merchants" => Merchants,
     "orders" => Orders
   }.freeze
+  BOM = "\xEF\xBB\xBF".b
+  ALLOWED_CHARACTERS = /\A[\nA-Za-z0-9.;@_-]*\z/
 
   def self.batch_size
     Integer(ENV.fetch("CSV_IMPORT_BATCH_SIZE", 500))
@@ -29,11 +31,12 @@ class ImportCsv
     @errors = []
     @imported_count = 0
     @constraint_error = nil
+    @file_error = nil
   end
 
   def call
     mark_processing
-    return finish_failure unless import_file
+    return finish_failure(file_error) unless import_file
 
     finish_success
   rescue Rejected
@@ -45,7 +48,7 @@ class ImportCsv
 
   private
 
-  attr_reader :csv_import, :errors, :imported_count
+  attr_reader :csv_import, :errors, :imported_count, :file_error
 
   def mark_processing
     csv_import.update!(
@@ -60,6 +63,10 @@ class ImportCsv
 
   def import_file
     Bucket.open(csv_import.object_key) do |io|
+      raw = io.read
+      io.rewind
+      return false unless acceptable_file?(raw)
+
       read_rows(io)
       return false if errors.any?
 
@@ -73,6 +80,51 @@ class ImportCsv
   rescue ActiveRecord::RecordNotUnique => error
     @constraint_error = error.message
     raise Rejected
+  end
+
+  def acceptable_file?(raw)
+    if raw.b.start_with?(BOM)
+      reject_file("CSV contains characters outside the SeQura files")
+      return false
+    end
+
+    text = raw.dup.force_encoding(Encoding::UTF_8)
+    unless text.valid_encoding?
+      reject_file("CSV is not valid UTF-8")
+      return false
+    end
+
+    unless text.match?(ALLOWED_CHARACTERS)
+      reject_file("CSV contains characters outside the SeQura files")
+      return false
+    end
+
+    lines = text.lines
+    header = lines.first&.chomp
+    if header.blank?
+      reject_file("CSV has no rows")
+      return false
+    end
+
+    extra = header.split(";", -1) - strategy.class.csv_headers
+    if extra.any?
+      reject_file("CSV is not the model used by SeQura", column: extra.first)
+      return false
+    end
+
+    if lines.drop(1).none? { |line| line.strip.present? }
+      reject_file("CSV has no rows")
+      return false
+    end
+
+    true
+  end
+
+  def reject_file(message, column: nil)
+    @file_error = message
+    return if column.nil?
+
+    errors << { "line" => 1, "column" => column, "message" => message }
   end
 
   def read_rows(io)

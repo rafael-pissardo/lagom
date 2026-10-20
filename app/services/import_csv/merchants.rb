@@ -2,6 +2,10 @@ class ImportCsv::Merchants
   include ImportCsv::CsvRow
   include UuidHelper
 
+  def self.csv_headers
+    COLUMNS.values.uniq
+  end
+
   COLUMNS = {
     id: "id",
     reference: "reference",

@@ -1,6 +1,10 @@
 class ImportCsv::Orders
   include ImportCsv::CsvRow
 
+  def self.csv_headers
+    COLUMNS.values.uniq
+  end
+
   COLUMNS = {
     external_id: "id",
     merchant: "merchant_reference",
