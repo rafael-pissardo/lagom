@@ -28,7 +28,7 @@ class CsvImportsController < ApplicationController
     return render_invalid unless import_ready?
 
     @csv_import.object_key = CsvImport.object_key_for(@csv_import.kind)
-    Bucket.put(key: @csv_import.object_key, body: csv_import_params[:file])
+    BucketService.put(key: @csv_import.object_key, body: csv_import_params[:file])
 
     if @csv_import.save
       ImportCsvJob.perform_later(@csv_import.id)
@@ -36,7 +36,7 @@ class CsvImportsController < ApplicationController
     else
       render_invalid
     end
-  rescue Bucket::Error
+  rescue BucketService::Error
     render_invalid
   end
 

@@ -2,8 +2,8 @@ class BackfillSettlementsJob < ApplicationJob
   queue_as :default
 
   def perform
-    BackfillSettlements.call
+    BackfillSettlementsService.call
   ensure
-    YearlyReportRefresh.call(force: true)
+    YearlyReportRefreshService.call(force: true)
   end
 end

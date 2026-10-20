@@ -1,5 +1,5 @@
-class ImportCsv::Merchants
-  include ImportCsv::CsvRow
+class ImportCsvService::MerchantsService
+  include ImportCsvService::CsvRow
   include UuidHelper
 
   def self.csv_headers
@@ -43,7 +43,7 @@ class ImportCsv::Merchants
     frequency = value(row, "disbursement_frequency", line_number)
     minimum_monthly_fee_cents = money_value(row, "minimum_monthly_fee", line_number)
     ensure_frequency!(frequency, line_number)
-    raise ImportCsv::RowError.new(line_number, "id", "is invalid") unless uuid?(id)
+    raise ImportCsvService::RowError.new(line_number, "id", "is invalid") unless uuid?(id)
 
     {
       id: id,
@@ -76,7 +76,7 @@ class ImportCsv::Merchants
     parsed = []
     errors = batch.each_with_object([]) do |(row, line_number), found|
       parsed << [ line_number, attributes(row, line_number) ]
-    rescue ImportCsv::RowError => error
+    rescue ImportCsvService::RowError => error
       found << row_error(error)
     end
     [ parsed, errors ]
@@ -116,7 +116,7 @@ class ImportCsv::Merchants
   def claim_entries(entries)
     entries.each_with_object([]) do |(line_number, attrs), found|
       claim_reference!(attrs.fetch(:id), attrs.fetch(:reference), line_number)
-    rescue ImportCsv::RowError => error
+    rescue ImportCsvService::RowError => error
       found << row_error(error)
     end
   end

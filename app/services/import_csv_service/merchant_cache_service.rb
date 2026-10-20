@@ -1,5 +1,5 @@
-class ImportCsv::MerchantCache
-  def initialize(batch_size: ImportCsv.batch_size)
+class ImportCsvService::MerchantCacheService
+  def initialize(batch_size: ImportCsvService.batch_size)
     @batch_size = batch_size
     reset!
   end

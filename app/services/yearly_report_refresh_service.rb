@@ -1,4 +1,4 @@
-class YearlyReportRefresh
+class YearlyReportRefreshService
   STREAM = "yearly_report"
   INTERVAL = 2
 

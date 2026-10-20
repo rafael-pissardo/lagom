@@ -1,6 +1,6 @@
 <%= render AppShellComponent.new do %>
   <%= render PageHeaderComponent.new(title: t("reports.yearly.title")) %>
-  <%= turbo_stream_from YearlyReportRefresh::STREAM %>
+  <%= turbo_stream_from YearlyReportRefreshService::STREAM %>
 
   <% filtering = filtering?(:year) %>
   <% if filtering || @rows.any? %>

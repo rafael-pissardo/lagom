@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ImportCsv do
+RSpec.describe ImportCsvService do
   def store_csv(csv_import, content)
     files[csv_import.object_key] = content
   end
@@ -10,7 +10,7 @@ RSpec.describe ImportCsv do
   let(:bucket_rewinds) { [] }
 
   before do
-    allow(Bucket).to receive(:open) do |key, &block|
+    allow(BucketService).to receive(:open) do |key, &block|
       bucket_opens << key
       io = StringIO.new(files.fetch(key))
       rewinds = bucket_rewinds
@@ -43,7 +43,7 @@ RSpec.describe ImportCsv do
       phases << :write if kwargs[:requires_new]
       method.call(*args, **kwargs, &block)
     end
-    expect(CsvBatchReader).to receive(:each).with(io: kind_of(StringIO), batch_size: 1).twice.and_wrap_original do |method, **kwargs, &block|
+    expect(CsvBatchReaderService).to receive(:each).with(io: kind_of(StringIO), batch_size: 1).twice.and_wrap_original do |method, **kwargs, &block|
       phases << (phases.include?(:write) ? :read_inside : :read_outside)
       method.call(**kwargs, &block)
     end
@@ -468,7 +468,7 @@ RSpec.describe ImportCsv do
       id;merchant_reference;amount;created_at
       e653f3e14bc4;padberg_group;102.29;2023-02-01
     CSV
-    allow_any_instance_of(ImportCsv::Orders).to receive(:prepare_batch).and_wrap_original do |method, batch, **kwargs|
+    allow_any_instance_of(ImportCsvService::OrdersService).to receive(:prepare_batch).and_wrap_original do |method, batch, **kwargs|
       if kwargs[:lock]
         order.update!(disbursement: create(:disbursement, merchant: merchant))
       end

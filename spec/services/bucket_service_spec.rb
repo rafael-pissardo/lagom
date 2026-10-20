@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Bucket do
+RSpec.describe BucketService do
   let(:env_keys) do
     %w[AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION AWS_ENDPOINT_URL AWS_S3_BUCKET_NAME]
   end
@@ -54,7 +54,7 @@ RSpec.describe Bucket do
 
     expect {
       described_class.put(key: "a.csv", body: StringIO.new("x"))
-    }.to raise_error(Bucket::Error, "no such bucket")
+    }.to raise_error(BucketService::Error, "no such bucket")
   end
 
   it "uses the local MinIO defaults in development when the env is unset" do

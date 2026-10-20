@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe YearlyReportRefresh do
+RSpec.describe YearlyReportRefreshService do
   let(:merchant) { create(:merchant, reference: "refresh_co", live_on: Date.new(2022, 9, 1)) }
 
   before { described_class.reset! }

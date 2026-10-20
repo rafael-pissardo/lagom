@@ -1,4 +1,4 @@
-class DisburseMerchant
+class DisburseMerchantService
   class AssociationError < StandardError; end
 
   def self.call(merchant:, as_of:)

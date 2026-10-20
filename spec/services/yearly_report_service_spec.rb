@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe YearlyReport do
+RSpec.describe YearlyReportService do
   it "aggregates disbursements and charged monthly fees by year" do
     merchant = create(:merchant, reference: "report_co", live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 100)
     create(
@@ -30,7 +30,7 @@ RSpec.describe YearlyReport do
     merchant = create(:merchant, reference: "nye_co", live_on: Date.new(2022, 12, 1), minimum_monthly_fee_cents: 100)
     create(:order, merchant: merchant, ordered_on: Date.new(2022, 12, 31), amount_cents: 5_000)
 
-    DailySettlement.call(as_of: Date.new(2023, 1, 1))
+    DailySettlementService.call(as_of: Date.new(2023, 1, 1))
 
     rows = described_class.call.index_by(&:year)
 

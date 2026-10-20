@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe BackfillSettlements do
+RSpec.describe BackfillSettlementsService do
   it "backfills disbursements through the catch-up window and closed monthly fees" do
     merchant = create(
       :merchant,
@@ -41,7 +41,7 @@ RSpec.describe BackfillSettlements do
     first = create(:order, merchant:, ordered_on: Date.new(2022, 9, 1), amount_cents: 1_000, commission_cents: 10)
     third = create(:order, merchant:, ordered_on: Date.new(2022, 9, 3), amount_cents: 3_000, commission_cents: 30)
 
-    expect(DisburseMerchant).not_to receive(:call)
+    expect(DisburseMerchantService).not_to receive(:call)
 
     described_class.call(as_of: Date.new(2022, 9, 10))
 

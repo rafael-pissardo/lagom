@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe CsvBatchReader do
+RSpec.describe CsvBatchReaderService do
   it "yields data rows in batches, counting the header as line 1" do
     io = StringIO.new(<<~CSV)
       id;reference

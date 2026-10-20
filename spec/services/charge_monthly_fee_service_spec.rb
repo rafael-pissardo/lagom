@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe ChargeMonthlyFee do
+RSpec.describe ChargeMonthlyFeeService do
   describe ".call" do
     it "charges the remaining amount when commissions are below the minimum" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 2_900)

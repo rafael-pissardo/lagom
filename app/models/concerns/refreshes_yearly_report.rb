@@ -8,6 +8,6 @@ module RefreshesYearlyReport
   private
 
   def refresh_yearly_report
-    YearlyReportRefresh.call
+    YearlyReportRefreshService.call
   end
 end

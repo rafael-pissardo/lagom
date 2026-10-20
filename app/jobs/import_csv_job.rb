@@ -3,6 +3,6 @@ class ImportCsvJob < ApplicationJob
 
   def perform(csv_import_id)
     csv_import = CsvImport.find(csv_import_id)
-    ImportCsv.call(csv_import: csv_import)
+    ImportCsvService.call(csv_import: csv_import)
   end
 end
