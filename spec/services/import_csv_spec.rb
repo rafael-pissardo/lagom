@@ -54,7 +54,7 @@ RSpec.describe ImportCsv do
 
     expect(phases).to eq(%i[read_outside write read_inside])
     expect(bucket_opens).to eq([ csv_import.object_key ])
-    expect(bucket_rewinds).to eq([ csv_import.object_key ])
+    expect(bucket_rewinds).to eq([ csv_import.object_key, csv_import.object_key ])
 
     csv_import.reload
     expect(csv_import).to be_succeeded
@@ -86,7 +86,7 @@ RSpec.describe ImportCsv do
 
     expect(phases).to eq([])
     expect(bucket_opens).to eq([ csv_import.object_key ])
-    expect(bucket_rewinds).to eq([])
+    expect(bucket_rewinds).to eq([ csv_import.object_key ])
 
     csv_import.reload
     expect(csv_import).to be_failed
@@ -443,7 +443,7 @@ RSpec.describe ImportCsv do
     order.reload
     expect(phases).to eq([])
     expect(bucket_opens).to eq([ csv_import.object_key ])
-    expect(bucket_rewinds).to eq([])
+    expect(bucket_rewinds).to eq([ csv_import.object_key ])
     expect(csv_import.reload).to be_failed
     expect(order.disbursement_id).to eq(disbursement.id)
     expect(order.amount_cents).to eq(1_000)
@@ -485,6 +485,204 @@ RSpec.describe ImportCsv do
     expect(csv_import.error_rows).to eq([
       { "line" => 2, "column" => "amount", "message" => "cannot be changed after the order was disbursed" }
     ])
+  end
+
+  it "imports a zero amount and keeps the commission at zero cents" do
+    create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+    csv_import = create(:csv_import, kind: "orders")
+    store_csv(csv_import, <<~CSV)
+      id;merchant_reference;amount;created_at
+      e653f3e14bc4;padberg_group;0.00;2023-02-01
+    CSV
+
+    described_class.call(csv_import: csv_import)
+
+    order = Order.find_by!(external_id: "e653f3e14bc4")
+    expect(csv_import.reload).to be_succeeded
+    expect(order.amount_cents).to eq(0)
+    expect(order.commission_cents).to eq(0)
+  end
+
+  it "reads merchants by column name when the header order changes" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, <<~CSV)
+      email;minimum_monthly_fee;disbursement_frequency;live_on;reference;id
+      info@padberg-group.com;15.0;WEEKLY;2023-02-01;padberg_group;86312006-4d7e-45c4-9c28-788f4aa68a62
+    CSV
+
+    described_class.call(csv_import: csv_import)
+
+    merchant = Merchant.find("86312006-4d7e-45c4-9c28-788f4aa68a62")
+    expect(csv_import.reload).to be_succeeded
+    expect(merchant.reference).to eq("padberg_group")
+    expect(merchant.email).to eq("info@padberg-group.com")
+    expect(merchant).to be_weekly
+    expect(merchant.live_on).to eq(Date.new(2023, 2, 1))
+    expect(merchant.minimum_monthly_fee_cents).to eq(1_500)
+  end
+
+  it "rolls the file back when a required column, a date, a frequency, or an amount is invalid" do
+    create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+    cases = {
+      "orders" => [
+        [
+          "id;merchant_reference;created_at\ne653f3e14bc4;padberg_group;2023-02-01\n",
+          { "line" => 2, "column" => "amount", "message" => "is blank" }
+        ],
+        [
+          "id;merchant_reference;amount;created_at\ne653f3e14bc4;padberg_group;10.00;2023-02-31\n",
+          { "line" => 2, "column" => "created_at", "message" => "is invalid" }
+        ],
+        [
+          "id;merchant_reference;amount;created_at\ne653f3e14bc4;padberg_group;abc;2023-02-01\n",
+          { "line" => 2, "column" => "amount", "message" => "is invalid" }
+        ]
+      ],
+      "merchants" => [
+        [
+          "id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee\n86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;info@padberg-group.com;2023-02-01;MONTHLY;0.0\n",
+          { "line" => 2, "column" => "disbursement_frequency", "message" => "Disbursement frequency is not included in the list" }
+        ]
+      ]
+    }
+
+    cases.each do |kind, files|
+      files.each do |content, error_row|
+        csv_import = create(:csv_import, kind:)
+        store_csv(csv_import, content)
+
+        described_class.call(csv_import: csv_import)
+
+        expect(csv_import.reload).to be_failed
+        expect(csv_import.error_rows).to eq([ error_row ])
+      end
+    end
+
+    expect(Order.count).to eq(0)
+    expect(Merchant.count).to eq(1)
+  end
+
+  it "rejects an empty file and a header-only file and runs nothing" do
+    contents = [
+      "",
+      "id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee\n",
+      "id;merchant_reference;amount;created_at\n"
+    ]
+
+    contents.each do |content|
+      kind = content.include?("merchant_reference") ? "orders" : "merchants"
+      csv_import = create(:csv_import, kind:)
+      store_csv(csv_import, content)
+
+      expect {
+        described_class.call(csv_import: csv_import)
+      }.not_to have_enqueued_job(BackfillSettlementsJob)
+
+      csv_import.reload
+      expect(csv_import).to be_failed
+      expect(csv_import.imported_count).to eq(0)
+      expect(csv_import.error_message).to eq("CSV has no rows")
+    end
+
+    expect(Merchant.count).to eq(0)
+    expect(Order.count).to eq(0)
+  end
+
+  it "rejects a CSV that is not the SeQura model and runs nothing" do
+    contents = {
+      "merchants" => <<~CSV,
+        id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee;notes
+        86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;info@padberg-group.com;2023-02-01;DAILY;0.0;extra
+      CSV
+      "orders" => <<~CSV
+        id;merchant_reference;amount;created_at;notes
+        e653f3e14bc4;padberg_group;10.00;2023-02-01;extra
+      CSV
+    }
+
+    contents.each do |kind, content|
+      csv_import = create(:csv_import, kind:)
+      store_csv(csv_import, content)
+
+      expect {
+        described_class.call(csv_import: csv_import)
+      }.not_to have_enqueued_job(BackfillSettlementsJob)
+
+      csv_import.reload
+      expect(csv_import).to be_failed
+      expect(csv_import.imported_count).to eq(0)
+      expect(csv_import.error_message).to eq("CSV is not the model used by SeQura")
+      expect(csv_import.error_rows).to eq([
+        { "line" => 1, "column" => "notes", "message" => "CSV is not the model used by SeQura" }
+      ])
+    end
+
+    expect(Merchant.count).to eq(0)
+    expect(Order.count).to eq(0)
+  end
+
+  it "rejects a UTF-8 BOM and runs nothing" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, "\uFEFF" + <<~CSV)
+      id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+      86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;info@padberg-group.com;2023-02-01;DAILY;0.0
+    CSV
+
+    expect {
+      described_class.call(csv_import: csv_import)
+    }.not_to have_enqueued_job(BackfillSettlementsJob)
+
+    expect(csv_import.reload).to be_failed
+    expect(csv_import.error_message).to eq("CSV contains characters outside the SeQura files")
+    expect(Merchant.count).to eq(0)
+  end
+
+  it "rejects a file that is not UTF-8 and runs nothing" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, <<~CSV.encode("ISO-8859-1"))
+      id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+      86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;josé@padberg.test;2023-02-01;DAILY;0.0
+    CSV
+
+    expect {
+      described_class.call(csv_import: csv_import)
+    }.not_to have_enqueued_job(BackfillSettlementsJob)
+
+    expect(csv_import.reload).to be_failed
+    expect(csv_import.error_message).to eq("CSV is not valid UTF-8")
+    expect(Merchant.count).to eq(0)
+  end
+
+  it "rejects characters that do not appear in the SeQura files and runs nothing" do
+    csv_import = create(:csv_import, kind: "merchants")
+    store_csv(csv_import, <<~CSV)
+      id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+      86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;josé@padberg.test;2023-02-01;DAILY;0.0
+    CSV
+
+    expect {
+      described_class.call(csv_import: csv_import)
+    }.not_to have_enqueued_job(BackfillSettlementsJob)
+
+    expect(csv_import.reload).to be_failed
+    expect(csv_import.error_message).to eq("CSV contains characters outside the SeQura files")
+    expect(Merchant.count).to eq(0)
+  end
+
+  it "keeps only the first two decimal digits of an amount" do
+    create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+    csv_import = create(:csv_import, kind: "orders")
+    store_csv(csv_import, <<~CSV)
+      id;merchant_reference;amount;created_at
+      e653f3e14bc4;padberg_group;1.239;2023-02-01
+    CSV
+
+    described_class.call(csv_import: csv_import)
+
+    order = Order.find_by!(external_id: "e653f3e14bc4")
+    expect(csv_import.reload).to be_succeeded
+    expect(order.amount_cents).to eq(123)
+    expect(order.commission_cents).to eq(2)
   end
 
   def capture_sql
