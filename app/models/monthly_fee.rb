@@ -1,4 +1,6 @@
 class MonthlyFee < ApplicationRecord
+  include RefreshesYearlyReport
+
   belongs_to :merchant
 
   validates :year, presence: true

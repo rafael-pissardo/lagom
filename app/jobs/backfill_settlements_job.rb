@@ -3,5 +3,7 @@ class BackfillSettlementsJob < ApplicationJob
 
   def perform
     BackfillSettlements.call
+  ensure
+    YearlyReportRefresh.call(force: true)
   end
 end
