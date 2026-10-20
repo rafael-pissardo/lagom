@@ -106,6 +106,63 @@ RSpec.describe BackfillSettlementsService do
     expect(disbursed_on_for(late_arrival)).to eq(Date.new(2022, 9, 3))
   end
 
+  it "pays an order on its natural day when a later disbursement exists and that day is free" do
+    merchant = create(:merchant, reference: "hole_co", live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 0)
+    create(:disbursement, merchant:, disbursed_on: Date.new(2022, 9, 5), gross_cents: 500, commission_cents: 5, net_cents: 495)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 1), amount_cents: 2_000, commission_cents: 20)
+
+    described_class.call(as_of: Date.new(2022, 9, 10))
+
+    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents, :net_cents)).to eq([
+      [ Date.new(2022, 9, 2), 2_000, 1_980 ],
+      [ Date.new(2022, 9, 5), 500, 495 ]
+    ])
+  end
+
+  it "puts orders blocked by taken days on the next open day, as one total" do
+    merchant = create(:merchant, reference: "blocked_co", live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 0)
+    create(:disbursement, merchant:, disbursed_on: Date.new(2022, 9, 2), gross_cents: 100, commission_cents: 1, net_cents: 99)
+    create(:disbursement, merchant:, disbursed_on: Date.new(2022, 9, 3), gross_cents: 100, commission_cents: 1, net_cents: 99)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 1), amount_cents: 2_000, commission_cents: 20)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 2), amount_cents: 3_000, commission_cents: 30)
+
+    described_class.call(as_of: Date.new(2022, 9, 10))
+
+    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents, :commission_cents, :net_cents)).to eq([
+      [ Date.new(2022, 9, 2), 100, 1, 99 ],
+      [ Date.new(2022, 9, 3), 100, 1, 99 ],
+      [ Date.new(2022, 9, 4), 5_000, 50, 4_950 ]
+    ])
+  end
+
+  it "moves weekly orders to the next live_on weekday when that weekday is taken" do
+    merchant = create(:merchant, :weekly, reference: "weekly_taken", live_on: Date.new(2022, 9, 5), minimum_monthly_fee_cents: 0)
+    create(:disbursement, merchant:, disbursed_on: Date.new(2022, 9, 12), gross_cents: 100, commission_cents: 1, net_cents: 99)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 6), amount_cents: 1_000, commission_cents: 10)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 10), amount_cents: 2_000, commission_cents: 20)
+
+    described_class.call(as_of: Date.new(2022, 9, 12))
+
+    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents, :commission_cents, :net_cents)).to eq([
+      [ Date.new(2022, 9, 12), 100, 1, 99 ],
+      [ Date.new(2022, 9, 19), 3_000, 30, 2_970 ]
+    ])
+  end
+
+  it "disburses an order that arrives after the backfill on the next daily run" do
+    merchant = create(:merchant, reference: "later_co", live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 0)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 1), amount_cents: 1_000, commission_cents: 10)
+
+    described_class.call(as_of: Date.new(2022, 9, 2))
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 2), amount_cents: 2_000, commission_cents: 20)
+    DailySettlementService.call(as_of: Date.new(2022, 9, 3))
+
+    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
+      [ Date.new(2022, 9, 2), 1_000 ],
+      [ Date.new(2022, 9, 3), 2_000 ]
+    ])
+  end
+
   def disbursed_on_for(order)
     Disbursement.find(order.reload.disbursement_id).disbursed_on
   end
