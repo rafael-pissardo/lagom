@@ -1,13 +1,14 @@
 class DisburseMerchantService
   class AssociationError < StandardError; end
 
-  def self.call(merchant:, as_of:)
-    new(merchant:, as_of:).call
+  def self.call(merchant:, as_of:, ordered_on_through: nil)
+    new(merchant:, as_of:, ordered_on_through:).call
   end
 
-  def initialize(merchant:, as_of:)
+  def initialize(merchant:, as_of:, ordered_on_through: nil)
     @merchant = merchant
     @as_of = as_of.to_date
+    @ordered_on_through = ordered_on_through&.to_date
   end
 
   def call
@@ -27,17 +28,24 @@ class DisburseMerchantService
 
   private
 
-  attr_reader :merchant, :as_of
+  attr_reader :merchant, :as_of, :ordered_on_through
 
   def disbursed_today?
     Disbursement.exists?(merchant_id: merchant.id, disbursed_on: as_of)
+  end
+
+  def last_ordered_on
+    yesterday = as_of - 1.day
+    return yesterday if ordered_on_through.nil?
+
+    [ yesterday, ordered_on_through ].min
   end
 
   def pending_orders
     Order.where(merchant_id: merchant.id)
       .undisbursed
       .ordered_on_or_after(merchant.live_on)
-      .ordered_on_or_before(as_of - 1.day)
+      .ordered_on_or_before(last_ordered_on)
   end
 
   def pending_totals

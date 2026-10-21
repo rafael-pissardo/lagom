@@ -108,6 +108,14 @@ Postgres defaults to `localhost:5434` so it does not collide with other local da
 
 From **CSV imports**, choose Merchant or Orders and upload one `;`-separated CSV. The file is stored in the bucket as `{kind}-{timestamp}.csv` before the import record is created. The request returns immediately with status `processing`. Solid Queue reads the file in batches. A successful import stores the rows and does not settle them. `DailyMerchantsJob` and `WeeklyMerchantsJob` settle what is already stored.
 
+Orders from past years that were paid on time are imported through the same form. The jobs would otherwise settle them today, in one disbursement per merchant. To settle them on the days the jobs would have run, replay the year after the import succeeds:
+
+```bash
+bin/rails lagom:replay_year YEAR=2023
+```
+
+The replay walks day by day from the oldest pending order through 7 January of the next year. Orders placed after 31 December of `YEAR` stay pending. Monthly fees close through December of `YEAR`. A 2022 order and a 2023 order in the same file, replayed with `YEAR=2023`, are each disbursed on the day the job would have run. A later 2026 import does not need a replay; the scheduled jobs settle it.
+
 A row error rolls the whole file back. Nothing from that CSV is stored, and no settlement job is enqueued. The import page offers a plain-text download of the line and column. An `id` that is already stored is one of those errors. The download reads `line 2, column id: has already been processed and cannot be imported again`. The same `id` repeated only inside a file that has not been stored yet keeps the last row.
 
 The show page subscribes over Action Cable while the import is `pending` or `processing`. When the status changes, the page replaces the status block in place. A finished import does not subscribe. Solid Cable carries the message from the worker process to the web process.
