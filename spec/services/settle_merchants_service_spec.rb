@@ -24,7 +24,7 @@ RSpec.describe SettleMerchantsService do
     expect { described_class.call(frequency: "DAILY", as_of: Date.new(2022, 10, 2)) }.not_to change(MonthlyFee, :count)
   end
 
-  it "creates one disbursement per missed day, with its own reference and total" do
+  it "issues one disbursement on each run for the orders pending that day" do
     merchant = create(:merchant, reference: "gap_daily", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 0)
     create(:order, merchant:, ordered_on: Date.new(2022, 9, 1), amount_cents: 1_000, commission_cents: 10)
     create(:order, merchant:, ordered_on: Date.new(2022, 9, 2), amount_cents: 2_000, commission_cents: 20)
@@ -34,18 +34,24 @@ RSpec.describe SettleMerchantsService do
     described_class.call(frequency: "DAILY", as_of: Date.new(2022, 9, 2))
     described_class.call(frequency: "DAILY", as_of: Date.new(2022, 9, 5))
 
-    rows = Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:reference, :net_cents)
-    expect(rows.map(&:last)).to eq([ 990, 1_980, 2_970, 3_960 ])
-    expect(rows.map(&:first).uniq.size).to eq(4)
-    expect(rows.map(&:first)).to all(match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/))
-    expect(Order.where(merchant: merchant).distinct.pluck(:disbursement_id).size).to eq(4)
+    rows = Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :reference, :net_cents)
+    expect(rows.map { |disbursed_on, _reference, net_cents| [ disbursed_on, net_cents ] }).to eq([
+      [ Date.new(2022, 9, 2), 990 ],
+      [ Date.new(2022, 9, 5), 8_910 ]
+    ])
+    expect(rows.map { |_disbursed_on, reference, _net_cents| reference }.uniq.size).to eq(2)
+    expect(rows.map { |_disbursed_on, reference, _net_cents| reference }).to all(match(/\A[0-9a-f]{32}\z/))
+    expect(Order.where(merchant: merchant).distinct.pluck(:disbursement_id).size).to eq(2)
   end
 
   it "catches up a weekly merchant only on the live_on weekday" do
     merchant = create(:merchant, :weekly, reference: "gap_weekly", live_on: Date.new(2022, 9, 7), minimum_monthly_fee_cents: 0)
     create(:order, merchant:, ordered_on: Date.new(2022, 9, 7), amount_cents: 1_000, commission_cents: 10)
 
-    described_class.call(frequency: "WEEKLY", as_of: Date.new(2022, 9, 16))
+    described_class.call(frequency: "WEEKLY", as_of: Date.new(2022, 9, 13))
+    expect(Disbursement.where(merchant: merchant)).to be_empty
+
+    described_class.call(frequency: "WEEKLY", as_of: Date.new(2022, 9, 14))
 
     expect(Disbursement.where(merchant: merchant).pluck(:disbursed_on, :net_cents)).to eq([ [ Date.new(2022, 9, 14), 990 ] ])
   end
@@ -77,9 +83,8 @@ RSpec.describe SettleMerchantsService do
 
     described_class.call(frequency: "DAILY", as_of: Date.new(2026, 10, 21))
 
-    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
-      [ Date.new(2022, 9, 16), 5_000 ],
-      [ Date.new(2023, 11, 8), 10_000 ]
+    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([
+      [ Date.new(2026, 10, 21), 15_000 ]
     ])
     months = (Date.new(2022, 9, 1)..Date.new(2026, 9, 1)).select { |day| day.day == 1 }.map { |day| [ day.year, day.month ] }
     expect(MonthlyFee.where(merchant:).order(:year, :month).pluck(:year, :month)).to eq(months)
@@ -102,7 +107,7 @@ RSpec.describe SettleMerchantsService do
 
     expect(fee.reload).to have_attributes(commissions_cents: 0, charged_cents: 2_900)
     expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:commissions_cents, :credit_cents)).to eq([ [ 48, 48 ] ])
-    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([ [ Date.new(2022, 9, 16), 5_000 ] ])
+    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([ [ Date.new(2022, 10, 2), 5_000 ] ])
   end
 
   it "does not create a second disbursement or monthly fee for a day it already settled" do

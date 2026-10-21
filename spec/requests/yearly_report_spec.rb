@@ -59,16 +59,13 @@ RSpec.describe "Yearly report", type: :request do
 
     get reports_yearly_path(sort: "monthly_fees_count", direction: "desc")
     expect(rows).to eq(%w[2023 2022])
-    expect(page.at_css("tbody tr").text).to include("0.20 €").and include("0.15 €").and include("0.05 €")
-    expect(page.at_css('td[data-mark="without-adjustments"]').text).to include("0.20 €")
-    expect(header("Total without adjustments")["class"]).to include("bg-lagom-accent/10")
-    expect(header("Monthly fee adjustments")).to be_present
-    expect(header("Total monthly fees")).to be_present
+    expect(report("competence").text).to include("0.20 €")
+    expect(report("competence").text).not_to include("0.15 €")
+    expect(header("Amount of monthly fees")).to be_present
+    expect(header("Total without adjustments")).to be_nil
+    expect(report("adjustments").text).to include("Charged year").and include("Reference year").and include("0.15 €")
 
-    get reports_yearly_path(sort: "monthly_fees_charged", direction: "desc")
-    expect(rows).to eq(%w[2023 2022])
-
-    get reports_yearly_path(sort: "monthly_fee_adjustments", direction: "desc")
+    get reports_yearly_path(sort: "monthly_fees_amount", direction: "desc")
     expect(rows).to eq(%w[2023 2022])
 
     get reports_yearly_path(sort: "amount_disbursed", direction: "nope")
@@ -95,7 +92,11 @@ RSpec.describe "Yearly report", type: :request do
   end
 
   def rows
-    page.css("tbody tr").map { |row| row.at_css("td").text.strip }
+    report("competence").css("tbody tr").map { |row| row.at_css("td").text.strip }
+  end
+
+  def report(name)
+    page.at_css(%([data-report="#{name}"]))
   end
 
   def summary

@@ -5,8 +5,6 @@ class YearlyReportSort
     "amount_disbursed" => :amount_disbursed_cents,
     "order_fees" => :order_fees_cents,
     "monthly_fees_count" => :monthly_fees_count,
-    "monthly_fees_charged" => :monthly_fees_charged_cents,
-    "monthly_fee_adjustments" => :monthly_fee_adjustments_cents,
     "monthly_fees_amount" => :monthly_fees_amount_cents
   }.freeze
 

@@ -12,7 +12,7 @@ class Disbursement < ApplicationRecord
   validates :disbursed_on, uniqueness: { scope: :merchant_id }
 
   def self.build_reference
-    SecureRandom.uuid
+    SecureRandom.hex(16)
   end
 
   def label

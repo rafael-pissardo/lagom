@@ -1,4 +1,6 @@
 class MonthlyFeeAdjustment < ApplicationRecord
+  include RefreshesYearlyReport
+
   belongs_to :monthly_fee
 
   validates :commissions_cents, :credit_cents,
