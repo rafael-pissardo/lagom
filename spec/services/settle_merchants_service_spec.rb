@@ -73,17 +73,26 @@ RSpec.describe SettleMerchantsService do
     expect(Disbursement.where(merchant: weekly)).to be_empty
   end
 
-  it "disburses 2022 orders on a 2026 run and applies their commissions to the next monthly fee" do
+  it "disburses 2022 and 2023 orders on a 2026 run and charges every month since live_on" do
     merchant = create(:merchant, reference: "late_2022", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 2_900)
     create(:order, merchant:, ordered_on: Date.new(2022, 9, 15), amount_cents: 5_000, commission_cents: 48)
+    create(:order, merchant:, ordered_on: Date.new(2023, 11, 7), amount_cents: 10_000, commission_cents: 100)
 
     described_class.call(frequency: "DAILY", as_of: Date.new(2026, 10, 21))
 
-    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([ [ Date.new(2022, 9, 16), 5_000 ] ])
-    expect(MonthlyFee.where(merchant:).pluck(:year, :month)).to eq([ [ 2026, 9 ] ])
-    fee = MonthlyFee.find_by!(merchant:, year: 2026, month: 9)
-    expect(fee.charged_cents).to eq(2_852)
-    expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:carried, :credit_cents)).to eq([ [ true, 48 ] ])
+    expect(Disbursement.where(merchant:).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
+      [ Date.new(2022, 9, 16), 5_000 ],
+      [ Date.new(2023, 11, 8), 10_000 ]
+    ])
+    months = (Date.new(2022, 9, 1)..Date.new(2026, 9, 1)).select { |day| day.day == 1 }.map { |day| [ day.year, day.month ] }
+    expect(MonthlyFee.where(merchant:).order(:year, :month).pluck(:year, :month)).to eq(months)
+    expect(MonthlyFee.find_by!(merchant:, year: 2022, month: 9)).to have_attributes(commissions_cents: 48, charged_cents: 2_852)
+    expect(MonthlyFee.find_by!(merchant:, year: 2022, month: 10)).to have_attributes(commissions_cents: 0, charged_cents: 2_900)
+    expect(MonthlyFee.find_by!(merchant:, year: 2023, month: 11)).to have_attributes(commissions_cents: 100, charged_cents: 2_800)
+    expect(MonthlyFee.find_by!(merchant:, year: 2026, month: 9)).to have_attributes(commissions_cents: 0, charged_cents: 2_900)
+    expect(MonthlyFee.exists?(merchant:, year: 2026, month: 10)).to be(false)
+
+    expect { described_class.call(frequency: "DAILY", as_of: Date.new(2026, 10, 21)) }.not_to change(MonthlyFee, :count)
   end
 
   it "credits a charged month when a later import adds orders to it, without touching the fee row" do

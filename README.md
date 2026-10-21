@@ -72,8 +72,8 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 - An amount with a digit after the second decimal place rounds up to the next cent before commission is calculated. `1.239` becomes `1.24 €`. `1.230` stays `1.23 €`.
 - Commission is calculated per order and rounded up to the next cent: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%.
 - Net to merchant = gross − order commissions. Monthly fees are stored, not subtracted.
-- Each job closes the previous calendar month for its own merchants when that fee does not exist yet. It does not close older months. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month. Commissions from a month that has no fee reduce that next fee. The reduction is a carried `MonthlyFeeAdjustment` on it. What does not fit in the charge waits for the following fee.
-- A charged month is not rewritten. When a later import adds orders to a month that already has a fee, the job keeps that fee row as it was and stores a `MonthlyFeeAdjustment` with the new commission total and the credit owed back: the part of the charge those commissions now cover. More late orders add another adjustment for the further difference only. A credit never exceeds what was charged. The yearly report counts that credit in the year the adjustment was recorded, not in the year of the closed month. Total monthly fees for a year are that year's charged amount plus the credits recorded in that year.
+- Each job closes every month from that merchant's `live_on` month through the previous calendar month when the fee does not exist yet. It does not close the current month. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month. Each month is charged from its own commissions.
+- A charged month is not rewritten. When a later import adds orders to a month that already has a fee, the job keeps that fee row as it was and stores a `MonthlyFeeAdjustment` with the new commission total and the credit owed back: the part of the charge those commissions now cover. More late orders add another adjustment for the further difference only. A credit never exceeds what was charged. The yearly report counts that credit in the year the adjustment was recorded, not in the year of the closed month. Total monthly fees for a year are that year's charged amount minus the credits recorded in that year. The same charged amount is also shown on its own, in the marked column Total without adjustments. A year with only credits can show a negative total.
 - A month with no commissions is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
 
 ## Yearly report
@@ -88,10 +88,10 @@ The table is the official file as settled through 14 Nov 2023. Importing a CSV d
 bin/rails runner 'puts YearlyReportService.call.inspect'
 ```
 
-| Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Monthly fee adjustments | Total monthly fees |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 0.00 € | 562.83 € |
-| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 0.00 € | 1,735.65 € |
+| Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Total without adjustments | Monthly fee adjustments | Total monthly fees |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 562.83 € | 0.00 € | 562.83 € |
+| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 1,735.65 € | 0.00 € | 1,735.65 € |
 
 ## Tests
 

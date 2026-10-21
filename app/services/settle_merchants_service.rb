@@ -13,15 +13,9 @@ class SettleMerchantsService
   end
 
   def call
-    previous_month = as_of.beginning_of_month.prev_month
-
     merchants.find_each do |merchant|
       DisburseMerchantService.call(merchant: merchant, as_of: as_of)
-      ChargeMonthlyFeeService.call(
-        merchant: merchant,
-        year: previous_month.year,
-        month: previous_month.month
-      )
+      charge_elapsed_months(merchant)
       AdjustMonthlyFeesService.call(merchant: merchant)
     end
   end
@@ -32,5 +26,14 @@ class SettleMerchantsService
 
   def merchants
     Merchant.where(disbursement_frequency: frequency)
+  end
+
+  def charge_elapsed_months(merchant)
+    month = merchant.live_on.beginning_of_month
+    last = as_of.beginning_of_month.prev_month
+    while month <= last
+      ChargeMonthlyFeeService.call(merchant: merchant, year: month.year, month: month.month)
+      month = month.next_month
+    end
   end
 end

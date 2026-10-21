@@ -27,16 +27,18 @@ class ChargeMonthlyFeeService
 
       own_commissions_cents = commissions_cents(period_start..period_end)
       charge_cents = [ merchant.minimum_monthly_fee_cents - own_commissions_cents, 0 ].max
-      carried_cents = [ [ unapplied_prior_commissions, 0 ].max, charge_cents ].min
+      carried_commissions_cents = [ unapplied_prior_commissions, 0 ].max
 
       fee = MonthlyFee.create!(
         merchant: merchant,
         year: year,
         month: month,
         commissions_cents: own_commissions_cents,
-        charged_cents: charge_cents - carried_cents
+        charged_cents: charge_cents
       )
-      fee.adjustments.create!(commissions_cents: carried_cents, credit_cents: carried_cents, carried: true) if carried_cents.positive?
+      if carried_commissions_cents.positive?
+        fee.adjustments.create!(commissions_cents: carried_commissions_cents, credit_cents: 0, carried: true)
+      end
     end
   end
 
@@ -74,6 +76,6 @@ class ChargeMonthlyFeeService
     MonthlyFeeAdjustment.where(carried: true)
       .joins(:monthly_fee)
       .where(monthly_fees: { merchant_id: merchant.id })
-      .sum(:credit_cents)
+      .sum(:commissions_cents)
   end
 end
