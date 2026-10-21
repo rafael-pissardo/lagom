@@ -29,33 +29,33 @@ flowchart LR
 
 ### October 2026 run for a merchant live since September 2022
 
-The run creates the disbursements for the stored orders and a fee for every month from September 2022 through September 2026. October 2026 stays open. September 2022 earned €40, which is above the €29 minimum, so that month is charged €0. September 2026 earned nothing, so it is charged €29. The 2022 commissions do not change the 2026 fee.
+The run issues one disbursement dated 21 Oct 2026 for the stored orders, and a fee for every month from September 2022 through September 2026. October 2026 stays open. September 2022 earned €40, which is above the €29 minimum, so that month is charged €0. September 2026 earned nothing, so it is charged €29. The 2022 commissions do not change the 2026 fee. The yearly report counts that disbursement in 2026.
 
 ```mermaid
 flowchart LR
     classDef order fill:royalblue,stroke:navy,color:white
     classDef fee fill:seagreen,stroke:darkgreen,color:white
     classDef open fill:darkorange,stroke:chocolate,color:white
-    A["15 Sep 2022<br/>40 EUR commission"]:::order --> B["7 Nov 2023<br/>Order disbursed<br/>on its own day"]:::order --> C["Sep 2022 to Sep 2026<br/>Each month charged<br/>Sep 2022 is 0 EUR<br/>Sep 2026 is 29 EUR"]:::fee --> D["21 Oct 2026<br/>October stays open"]:::open
+    A["15 Sep 2022<br/>40 EUR commission"]:::order --> B["7 Nov 2023<br/>Order stays pending"]:::order --> C["21 Oct 2026<br/>One disbursement<br/>for both orders"]:::fee --> D["Sep 2022 to Sep 2026<br/>Each month charged<br/>October stays open"]:::open
 ```
 
 ### Yearly report when a €100 fee receives a €40 credit
 
-The charged amount stays visible on its own. The total subtracts only the credits recorded in that year.
+The yearly table keeps the charged amount. A €40 credit charged in 2026 on the 2022 fee leaves 2022 at €100. The adjustments table shows that credit with charged year 2026 and reference year 2022.
 
 ```mermaid
 flowchart LR
     classDef charged fill:royalblue,stroke:navy,color:white
     classDef credit fill:darkorange,stroke:chocolate,color:white
     classDef total fill:seagreen,stroke:darkgreen,color:white
-    A["2022 charged<br/>100 EUR"]:::charged --> B["2022 adjustments<br/>40 EUR"]:::credit --> C["2022 total<br/>60 EUR"]:::total
+    A["2022 fee<br/>Charged 100 EUR"]:::charged --> B["Credit charged in 2026<br/>40 EUR"]:::credit --> C["Yearly table<br/>2022 stays 100 EUR"]:::total
 ```
 
 ```mermaid
 flowchart LR
-    classDef charged fill:royalblue,stroke:navy,color:white
     classDef credit fill:darkorange,stroke:chocolate,color:white
-    A["2022<br/>Charged 100 EUR<br/>Adjustments 0 EUR<br/>Total 100 EUR"]:::charged --> B["2026<br/>Charged 0 EUR<br/>Adjustments 40 EUR<br/>Total -40 EUR"]:::credit
+    classDef total fill:seagreen,stroke:darkgreen,color:white
+    A["Same credit"]:::credit --> B["Adjustments<br/>Charged year 2026<br/>Reference year 2022<br/>Credit 40 EUR"]:::total
 ```
 
 Planning: [docs/planning.md](docs/planning.md).
@@ -122,17 +122,17 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 
 - Orders are disbursed exactly once. Running a job again for a day that already has a disbursement does not insert another one, and does not insert a second monthly fee for the same merchant and month.
 - `DailyMerchantsJob` settles `DAILY` merchants. `WeeklyMerchantsJob` settles `WEEKLY` merchants. Both run at 07:00 UTC every day. The weekly job runs every day because each merchant is paid on the weekday of their own `live_on`. On any other weekday that merchant gets no disbursement.
-- The first run for a merchant starts at `live_on`. A later run starts the day after that merchant's latest disbursement. The run pays every eligible day up to the calendar day, one disbursement per day. Daily merchants get each missed day. Weekly merchants get only the weekday of `live_on`. An order belongs to one disbursement. Orders in that disbursement have `ordered_on <=` the day before it, and `ordered_on >= live_on`.
+- `disbursed_on` is the day the disbursement is issued. On an eligible day the job issues one disbursement for that merchant, containing every pending order with `ordered_on` from `live_on` through the day before. A daily merchant is eligible every day. A weekly merchant is eligible only on the weekday of `live_on`. A second run that day does not insert another disbursement, and an order stored after it waits for the next eligible day. The order date stays on the order.
 - An amount with a digit after the second decimal place rounds up to the next cent before commission is calculated. `1.239` becomes `1.24 €`. `1.230` stays `1.23 €`.
 - Commission is calculated per order and rounded up to the next cent: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%.
 - Net to merchant = gross − order commissions. Monthly fees are stored, not subtracted.
 - Each job closes every month from that merchant's `live_on` month through the previous calendar month when the fee does not exist yet. It does not close the current month. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month. Each month is charged from its own commissions.
-- A charged month is not rewritten. When a later import adds orders to a month that already has a fee, the job keeps that fee row as it was and stores a `MonthlyFeeAdjustment` with the new commission total and the credit owed back: the part of the charge those commissions now cover. More late orders add another adjustment for the further difference only. A credit never exceeds what was charged. The yearly report counts that credit in the year the adjustment was recorded, not in the year of the closed month. Total monthly fees for a year are that year's charged amount minus the credits recorded in that year. The same charged amount is also shown on its own, in the marked column Total without adjustments. A year with only credits can show a negative total.
+- A charged month is not rewritten. When a later import adds orders to a month that already has a fee, the job keeps that fee row as it was and stores a `MonthlyFeeAdjustment` with the new commission total and the credit owed back: the part of the charge those commissions now cover. More late orders add another adjustment for the further difference only. A credit never exceeds what was charged. The yearly table shows the fees charged for months in that year and does not subtract credits. The adjustments table lists each credit with the year it was charged and the reference year of the fee.
 - A month with no commissions is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
 
 ## Yearly report
 
-A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022.
+A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. The amount of monthly fees is the charged amount of that year. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022. A credit charged in 2026 on that fee does not change 2022. It appears under Adjustments, with charged year 2026 and reference year 2022.
 
 The page filters by year as you type, sorts every column, and pages 10 years at a time. It stays subscribed over Action Cable. A new or changed disbursement or monthly fee refreshes the table, at most once every 2 seconds, and each settlement job sends one more refresh when it finishes. The current year filter, sort, and page stay in the URL.
 
@@ -142,10 +142,10 @@ The table is the official file as settled through 14 Nov 2023. Importing a CSV d
 bin/rails runner 'puts YearlyReportService.call.inspect'
 ```
 
-| Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Total without adjustments | Monthly fee adjustments | Total monthly fees |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 562.83 € | 0.00 € | 562.83 € |
-| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 1,735.65 € | 0.00 € | 1,735.65 € |
+| Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Amount of monthly fees |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 562.83 € |
+| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 1,735.65 € |
 
 ## Tests
 
@@ -197,8 +197,6 @@ Run web + worker processes from the `Procfile`. The Railway pre-deploy command a
 
 - Year axis: should a disbursement on 01/01/2023 of a 31/12/2022 order count in 2023, and the December fee in 2022? That is what this report does.
 - Pro-rata: the first month is charged the full minimum when `live_on` is mid-month, and a month with no commissions is charged the full minimum. Should either case be prorated?
-- Missed day: the next run creates one disbursement per eligible day (each day for a daily merchant, only the `live_on` weekday for a weekly merchant). Should a skipped day instead be folded into a single disbursement on the day the job recovers?
-
 ## Decisions and AI usage
 
 - Money is stored as integer cents via `Finance::Amount`. The screen groups thousands (`131,931.34 €`). Product commission tiers live in `Commission`.

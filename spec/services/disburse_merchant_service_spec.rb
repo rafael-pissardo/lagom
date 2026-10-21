@@ -14,7 +14,7 @@ RSpec.describe DisburseMerchantService do
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
 
       disbursement = Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 5))
-      expect(disbursement.reference).to match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/)
+      expect(disbursement.reference).to match(/\A[0-9a-f]{32}\z/)
       expect(disbursement.gross_cents).to eq(6_174)
       expect(disbursement.commission_cents).to eq(59)
       expect(disbursement.net_cents).to eq(6_115)
@@ -28,7 +28,7 @@ RSpec.describe DisburseMerchantService do
       queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5)) }
 
       merchant_lock = queries.find { |sql| sql.include?('FROM "merchants"') && sql.include?("FOR UPDATE") }
-      totals = queries.find { |sql| sql.include?('SUM("orders"."amount_cents")') && sql.include?("GROUP BY") && sql.include?('"disbursement_id" IS NULL') }
+      totals = queries.find { |sql| sql.include?('SUM("orders"."amount_cents")') && sql.include?('"disbursement_id" IS NULL') }
       insert_at = queries.index { |sql| sql.include?('INSERT INTO "disbursements"') }
 
       expect(merchant_lock).to include('WHERE "merchants"."id"')
@@ -37,24 +37,21 @@ RSpec.describe DisburseMerchantService do
       expect(queries.none? { |sql| sql.include?('SELECT "orders".*') }).to be true
     end
 
-    it "pays only the settlement days that have pending orders, without visiting the empty days" do
+    it "pays an old order and yesterday's order in one disbursement dated the run" do
       merchant = create(:merchant, reference: "old_co", live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
-      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
-      create(:order, merchant: merchant, ordered_on: Date.new(2023, 11, 7), amount_cents: 2_000, commission_cents: 20)
+      old_order = create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
+      yesterday = create(:order, merchant: merchant, ordered_on: Date.new(2023, 11, 7), amount_cents: 2_000, commission_cents: 20)
 
-      queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2026, 10, 21)) }
+      described_class.call(merchant: merchant, as_of: Date.new(2026, 10, 21))
 
-      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :net_cents)).to eq([
-        [ Date.new(2022, 9, 5), 990 ],
-        [ Date.new(2023, 11, 8), 1_980 ]
-      ])
-      expect(merchant.orders.undisbursed.count).to eq(0)
-      expect(queries.count { |sql| sql.start_with?("INSERT") || sql.start_with?("UPDATE") }).to eq(2)
-      expect(queries.size).to be < 15
+      disbursement = Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2026, 10, 21))
+      expect(disbursement.net_cents).to eq(2_970)
+      expect(old_order.reload.disbursement_id).to eq(disbursement.id)
+      expect(yesterday.reload.disbursement_id).to eq(disbursement.id)
+      expect(Disbursement.where(merchant: merchant).count).to eq(1)
     end
 
-    it "pays the settlement days in batches, each in its own transaction" do
-      stub_const("DisburseMerchantService::BATCH_DAYS", 2)
+    it "pays every pending order in one disbursement" do
       merchant = create(:merchant, reference: "batch_co", live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
       (4..8).each do |day|
         create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, day), amount_cents: day * 1_000, commission_cents: day * 10)
@@ -62,16 +59,12 @@ RSpec.describe DisburseMerchantService do
 
       queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 9)) }
 
-      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
-        [ Date.new(2022, 9, 5), 4_000 ],
-        [ Date.new(2022, 9, 6), 5_000 ],
-        [ Date.new(2022, 9, 7), 6_000 ],
-        [ Date.new(2022, 9, 8), 7_000 ],
-        [ Date.new(2022, 9, 9), 8_000 ]
+      expect(Disbursement.where(merchant: merchant).pluck(:disbursed_on, :gross_cents)).to eq([
+        [ Date.new(2022, 9, 9), 30_000 ]
       ])
       expect(merchant.orders.undisbursed.count).to eq(0)
-      expect(queries.count { |sql| sql.include?('INSERT INTO "disbursements"') }).to eq(3)
-      expect(queries.count { |sql| sql.include?('FROM "merchants"') && sql.include?("FOR UPDATE") }).to eq(4)
+      expect(queries.count { |sql| sql.include?('INSERT INTO "disbursements"') }).to eq(1)
+      expect(queries.count { |sql| sql.include?('FROM "merchants"') && sql.include?("FOR UPDATE") }).to eq(1)
     end
 
     it "rolls back when fewer orders are associated than calculated" do
@@ -121,7 +114,7 @@ RSpec.describe DisburseMerchantService do
       expect(order.reload.disbursement_id).to eq(disbursement.id)
     end
 
-    it "runs weekly merchants only on the live_on weekday and catches up missed days" do
+    it "runs weekly merchants only on the live_on weekday and includes the pending orders" do
       live_on = Date.new(2022, 9, 5) # Monday
       merchant = create(:merchant, live_on: live_on, disbursement_frequency: "WEEKLY", reference: "weekly_co")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 6), amount_cents: 10_000)
@@ -221,32 +214,32 @@ RSpec.describe DisburseMerchantService do
       expect(order.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant).id)
     end
 
-    it "pays each missed day on its own day when previous runs were skipped" do
+    it "folds skipped days into the disbursement issued on the day the job runs" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY", reference: "daily_co")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 5_000)
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 5), amount_cents: 6_000)
 
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 7))
 
-      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
-        [ Date.new(2022, 9, 5), 5_000 ],
-        [ Date.new(2022, 9, 6), 6_000 ]
+      expect(Disbursement.where(merchant: merchant).pluck(:disbursed_on, :gross_cents)).to eq([
+        [ Date.new(2022, 9, 7), 11_000 ]
       ])
     end
 
-    it "pays an order stored after the latest disbursement on the next settlement day" do
+    it "pays an order stored after today's disbursement on the next eligible day" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY", reference: "late_co")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 10))
       late = create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 2_000, commission_cents: 20)
 
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 10))
+      described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 11))
 
       expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
-        [ Date.new(2022, 9, 5), 1_000 ],
-        [ Date.new(2022, 9, 6), 2_000 ]
+        [ Date.new(2022, 9, 10), 1_000 ],
+        [ Date.new(2022, 9, 11), 2_000 ]
       ])
-      expect(late.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 6)).id)
+      expect(late.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 11)).id)
     end
   end
 

@@ -1,12 +1,12 @@
 class YearlyReportService
+  DISBURSED_YEAR = Arel.sql("EXTRACT(YEAR FROM disbursed_on)::integer")
+
   Row = Data.define(
     :year,
     :disbursements_count,
     :amount_disbursed_cents,
     :order_fees_cents,
     :monthly_fees_count,
-    :monthly_fees_charged_cents,
-    :monthly_fee_adjustments_cents,
     :monthly_fees_amount_cents
   )
 
@@ -15,32 +15,43 @@ class YearlyReportService
   end
 
   def call
-    years = (
-      Disbursement.distinct.pluck(Arel.sql("EXTRACT(YEAR FROM disbursed_on)::integer")) +
-      MonthlyFee.distinct.pluck(:year) +
-      MonthlyFeeAdjustment.distinct.pluck(Arel.sql("EXTRACT(YEAR FROM created_at)::integer"))
-    ).uniq.sort
-
     years.map { |year| build_row(year) }
   end
 
   private
 
+  def years
+    (disbursement_totals.keys + MonthlyFee.distinct.pluck(:year)).uniq.sort
+  end
+
   def build_row(year)
-    disbursements = Disbursement.where("EXTRACT(YEAR FROM disbursed_on) = ?", year)
-    monthly_fees = MonthlyFee.where(year: year).charged
-    charged_cents = monthly_fees.sum(:charged_cents)
-    adjustments_cents = MonthlyFeeAdjustment.where("EXTRACT(YEAR FROM created_at) = ?", year).sum(:credit_cents)
+    disbursements = disbursement_totals[year] || { count: 0, net: 0, commission: 0 }
+    charged = charged_totals[year] || { count: 0, charged: 0 }
 
     Row.new(
       year: year,
-      disbursements_count: disbursements.count,
-      amount_disbursed_cents: disbursements.sum(:net_cents),
-      order_fees_cents: disbursements.sum(:commission_cents),
-      monthly_fees_count: monthly_fees.count,
-      monthly_fees_charged_cents: charged_cents,
-      monthly_fee_adjustments_cents: adjustments_cents,
-      monthly_fees_amount_cents: charged_cents - adjustments_cents
+      disbursements_count: disbursements[:count],
+      amount_disbursed_cents: disbursements[:net],
+      order_fees_cents: disbursements[:commission],
+      monthly_fees_count: charged[:count],
+      monthly_fees_amount_cents: charged[:charged]
     )
+  end
+
+  def disbursement_totals
+    @disbursement_totals ||= Disbursement.group(DISBURSED_YEAR).pluck(
+      DISBURSED_YEAR,
+      Arel.sql("COUNT(*)"),
+      Arel.sql("SUM(net_cents)"),
+      Arel.sql("SUM(commission_cents)")
+    ).to_h { |year, count, net, commission| [ year, { count: count, net: net, commission: commission } ] }
+  end
+
+  def charged_totals
+    @charged_totals ||= MonthlyFee.charged.group(:year).pluck(
+      :year,
+      Arel.sql("COUNT(*)"),
+      Arel.sql("SUM(charged_cents)")
+    ).to_h { |year, count, charged| [ year, { count: count, charged: charged } ] }
   end
 end
