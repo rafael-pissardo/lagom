@@ -59,9 +59,14 @@ RSpec.describe "Yearly report", type: :request do
 
     get reports_yearly_path(sort: "monthly_fees_count", direction: "desc")
     expect(rows).to eq(%w[2023 2022])
-    expect(page.at_css("tbody tr").text).to include("0.15 €").and include("0.35 €")
+    expect(page.at_css("tbody tr").text).to include("0.20 €").and include("0.15 €").and include("0.05 €")
+    expect(page.at_css('td[data-mark="without-adjustments"]').text).to include("0.20 €")
+    expect(header("Total without adjustments")["class"]).to include("bg-lagom-accent/10")
     expect(header("Monthly fee adjustments")).to be_present
     expect(header("Total monthly fees")).to be_present
+
+    get reports_yearly_path(sort: "monthly_fees_charged", direction: "desc")
+    expect(rows).to eq(%w[2023 2022])
 
     get reports_yearly_path(sort: "monthly_fee_adjustments", direction: "desc")
     expect(rows).to eq(%w[2023 2022])

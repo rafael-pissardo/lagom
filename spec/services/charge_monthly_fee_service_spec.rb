@@ -74,42 +74,41 @@ RSpec.describe ChargeMonthlyFeeService do
       expect(fee.charged_cents).to eq(100)
     end
 
-    it "applies commissions from months that have no fee to the next fee, and does not open those months" do
+    it "charges the full minimum for a month with no commissions even when an earlier month earned more than the minimum" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 2_900)
-      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 5_000, commission_cents: 48)
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 400_000, commission_cents: 4_000)
 
       described_class.call(merchant: merchant, year: 2026, month: 9)
 
       expect(MonthlyFee.where(merchant: merchant).pluck(:year, :month)).to eq([ [ 2026, 9 ] ])
       fee = MonthlyFee.find_by!(merchant: merchant, year: 2026, month: 9)
-      expect(fee).to have_attributes(commissions_cents: 0, charged_cents: 2_852)
-      expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:carried, :credit_cents)).to eq([ [ true, 48 ] ])
+      expect(fee).to have_attributes(commissions_cents: 0, charged_cents: 2_900)
+      expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:carried, :commissions_cents, :credit_cents)).to eq([
+        [ true, 4_000, 0 ]
+      ])
     end
 
-    it "leaves the remainder for the following monthly fee when one charge cannot absorb it" do
-      merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 100)
-      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 20_000, commission_cents: 190)
+    it "does not carry the same commissions into the following monthly fee" do
+      merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 2_900)
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 400_000, commission_cents: 4_000)
 
       described_class.call(merchant: merchant, year: 2026, month: 9)
       described_class.call(merchant: merchant, year: 2026, month: 10)
 
-      september = MonthlyFee.find_by!(merchant: merchant, year: 2026, month: 9)
       october = MonthlyFee.find_by!(merchant: merchant, year: 2026, month: 10)
-      expect(september).to have_attributes(charged_cents: 0)
-      expect(MonthlyFeeAdjustment.where(monthly_fee: september).pluck(:carried, :credit_cents)).to eq([ [ true, 100 ] ])
-      expect(october).to have_attributes(charged_cents: 10)
-      expect(MonthlyFeeAdjustment.where(monthly_fee: october).pluck(:carried, :credit_cents)).to eq([ [ true, 90 ] ])
+      expect(october.charged_cents).to eq(2_900)
+      expect(MonthlyFeeAdjustment.where(monthly_fee: october)).to be_empty
     end
 
     it "does not apply the same commissions to a second run of the fee" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 2_900)
-      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 5_000, commission_cents: 48)
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 15), amount_cents: 400_000, commission_cents: 4_000)
 
       described_class.call(merchant: merchant, year: 2026, month: 9)
       described_class.call(merchant: merchant, year: 2026, month: 9)
 
       fee = MonthlyFee.find_by!(merchant: merchant, year: 2026, month: 9)
-      expect(fee.charged_cents).to eq(2_852)
+      expect(fee.charged_cents).to eq(2_900)
       expect(MonthlyFeeAdjustment.where(monthly_fee: fee).count).to eq(1)
     end
 

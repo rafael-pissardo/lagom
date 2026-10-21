@@ -1,8 +1,9 @@
 class DataTableComponent < ApplicationComponent
-  def initialize(headers:, sorts: nil, sort: nil)
+  def initialize(headers:, sorts: nil, sort: nil, marked: [])
     @headers = headers
     @sorts = sorts
     @sort = sort
+    @marked = marked
   end
 
   def call
@@ -23,7 +24,8 @@ class DataTableComponent < ApplicationComponent
   end
 
   def header_cell(label, column)
-    content_tag(:th, class: "px-4 py-3 text-left font-medium text-white/60") do
+    classes = [ "px-4 py-3 text-left font-medium", marked?(column) ? "bg-lagom-accent/10 text-lagom-accent" : "text-white/60" ]
+    content_tag(:th, class: classes) do
       if column.nil?
         label
       else
@@ -35,6 +37,10 @@ class DataTableComponent < ApplicationComponent
         ])
       end
     end
+  end
+
+  def marked?(column)
+    column.present? && @marked.include?(column)
   end
 
   def direction_link(column, direction)
