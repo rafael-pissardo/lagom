@@ -4,6 +4,60 @@ Lagom is a Swedish word for balance and the right measure. This app calculates f
 
 Built for the [seQura backend coding challenge](https://sequra.github.io/backend-challenge/).
 
+## Disclaimer
+
+![Stop. A processed month does not change.](docs/images/disclaimer-stop.jpg)
+
+> [!CAUTION]
+> **A processed month is immutable.**
+>
+> An important edge case: orders that arrive after a month has been closed cannot change that closed month. They must enter as an adjustment. This guarantees auditing, public policies, and similar requirements.
+>
+> Because of this, a few details of the flow and of the reports for these edge cases differ from the flow in the original challenge statement.
+
+### Order arrives after the month is closed
+
+The minimum is €29. September ends with no commissions, so the fee stored on 1 Oct is €29. A later import adds €40 of commission to that same September. The fee row stays €29. The difference is an adjustment: €40 of commissions, and a credit of €29, the amount that was charged.
+
+```mermaid
+flowchart LR
+    classDef open fill:royalblue,stroke:navy,color:white
+    classDef stored fill:seagreen,stroke:darkgreen,color:white
+    classDef adjust fill:darkorange,stroke:chocolate,color:white
+    A["30 Sep 2022<br/>0 EUR in commissions"]:::open --> B["1 Oct 2022<br/>Fee stored at 29 EUR"]:::stored --> C["Later import<br/>40 EUR arrives<br/>Fee stays 29 EUR<br/>Credit of 29 EUR"]:::adjust
+```
+
+### October 2026 run for a merchant live since September 2022
+
+The run creates the disbursements for the stored orders and a fee for every month from September 2022 through September 2026. October 2026 stays open. September 2022 earned €40, which is above the €29 minimum, so that month is charged €0. September 2026 earned nothing, so it is charged €29. The 2022 commissions do not change the 2026 fee.
+
+```mermaid
+flowchart LR
+    classDef order fill:royalblue,stroke:navy,color:white
+    classDef fee fill:seagreen,stroke:darkgreen,color:white
+    classDef open fill:darkorange,stroke:chocolate,color:white
+    A["15 Sep 2022<br/>40 EUR commission"]:::order --> B["7 Nov 2023<br/>Order disbursed<br/>on its own day"]:::order --> C["Sep 2022 to Sep 2026<br/>Each month charged<br/>Sep 2022 is 0 EUR<br/>Sep 2026 is 29 EUR"]:::fee --> D["21 Oct 2026<br/>October stays open"]:::open
+```
+
+### Yearly report when a €100 fee receives a €40 credit
+
+The charged amount stays visible on its own. The total subtracts only the credits recorded in that year.
+
+```mermaid
+flowchart LR
+    classDef charged fill:royalblue,stroke:navy,color:white
+    classDef credit fill:darkorange,stroke:chocolate,color:white
+    classDef total fill:seagreen,stroke:darkgreen,color:white
+    A["2022 charged<br/>100 EUR"]:::charged --> B["2022 adjustments<br/>40 EUR"]:::credit --> C["2022 total<br/>60 EUR"]:::total
+```
+
+```mermaid
+flowchart LR
+    classDef charged fill:royalblue,stroke:navy,color:white
+    classDef credit fill:darkorange,stroke:chocolate,color:white
+    A["2022<br/>Charged 100 EUR<br/>Adjustments 0 EUR<br/>Total 100 EUR"]:::charged --> B["2026<br/>Charged 0 EUR<br/>Adjustments 40 EUR<br/>Total -40 EUR"]:::credit
+```
+
 Planning: [docs/planning.md](docs/planning.md).
 
 How the AI was used: [day 1](docs/registro-da-construcao.md), [day 2](docs/registro-da-construcao-dia-2.md), [day 3](docs/registro-da-construcao-dia-3.md). Those records stay in Portuguese. Translating them would replace the original wording of the prompts, and that wording is what the audit has to preserve.
@@ -134,15 +188,10 @@ Create two environments (staging, production), attach Postgres, set:
 
 Run web + worker processes from the `Procfile`. The Railway pre-deploy command and the production container both run `db:prepare` before the server starts. Neither creates an operator.
 
-## Decisions not taken
-
-- A run closes only the immediately previous month. If the job does not run for a whole month, that older month is never charged. Catching up every missed month was not part of this change.
-
 ## What I would improve with more time
 
 - **P0.** No logging service such as Datadog. Server logs are the workaround today.
 - **P1.** Railway Hobby will not absorb large data or user load. Measure infra behaviour next.
-- Close every missed monthly fee, not only the previous month, if a run can be down for more than a few days.
 
 ## Questions for seQura
 
