@@ -61,13 +61,13 @@ RSpec.describe "Index pagination", type: :request do
     get disbursements_path
 
     expect(table_rows).to eq(10)
-    expect(response.body).to include("disb-10")
-    expect(response.body).not_to include("disb-00")
+    expect(response.body).to include("Disb Page · 15/09/2022")
+    expect(response.body).not_to include("Disb Page · 05/09/2022")
 
     get disbursements_path(page: 2)
 
     expect(table_rows).to eq(1)
-    expect(response.body).to include("disb-00")
+    expect(response.body).to include("Disb Page · 05/09/2022")
   end
 
   it "shows 10 monthly fees per page" do
