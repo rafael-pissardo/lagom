@@ -14,16 +14,11 @@ class ImportCsvService::OrdersService
   }.freeze
 
   UPDATE_COLUMNS = %i[merchant_id ordered_on amount_cents commission_cents].freeze
-  DISBURSED_MESSAGE = "cannot be changed after the order was disbursed"
-  FINANCIAL_COLUMNS = [
-    [ :merchant_id, "merchant_reference" ],
-    [ :ordered_on, "created_at" ],
-    [ :amount_cents, "amount" ],
-    [ :commission_cents, "amount" ]
-  ].freeze
 
   def initialize(merchant_cache:)
     @merchant_cache = merchant_cache
+    @accepted_ids = Set.new
+    @found_external_ids = Set.new
   end
 
   def guard_concurrent_changes!
@@ -33,8 +28,9 @@ class ImportCsvService::OrdersService
   def prepare_batch(batch, lock: false)
     merchant_cache.load_references(batch.filter_map { |row, _line| row["merchant_reference"]&.strip })
     parsed, errors = parse_batch(batch)
-    kept = last_entries(parsed, :external_id)
-    errors.concat(disbursed_errors(kept, lock:))
+    errors.concat(already_processed_errors(parsed, lock:))
+    fresh = parsed.reject { |_line, attrs| processed_external_id?(attrs.fetch(:external_id)) }
+    kept = last_entries(fresh, :external_id)
     [ kept.map(&:last), errors ]
   end
 
@@ -60,6 +56,7 @@ class ImportCsvService::OrdersService
     return if rows.empty?
 
     Order.upsert_all(rows, unique_by: :external_id, update_only: UPDATE_COLUMNS, returning: false)
+    @accepted_ids.merge(rows.map { |row| row.fetch(:external_id) })
   end
 
   private
@@ -76,26 +73,32 @@ class ImportCsvService::OrdersService
     [ parsed, errors ]
   end
 
-  def disbursed_errors(entries, lock:)
-    return [] if entries.empty?
+  def already_processed_errors(entries, lock:)
+    @found_external_ids = existing_external_ids(entries, lock:)
+    entries.filter_map do |line_number, attrs|
+      external_id = attrs.fetch(:external_id)
+      next unless processed_external_id?(external_id)
 
-    existing = existing_orders(entries.map { |_line, attrs| attrs.fetch(:external_id) }, lock:)
-    entries.filter_map { |line_number, attrs| disbursed_change(line_number, existing[attrs.fetch(:external_id)], attrs) }
+      { "line" => line_number, "column" => "id", "message" => ImportCsvService::ALREADY_PROCESSED_MESSAGE }
+    end
+  end
+
+  def existing_external_ids(entries, lock:)
+    return Set.new if entries.empty?
+
+    existing_orders(entries.map { |_line, attrs| attrs.fetch(:external_id) }, lock:).keys.to_set
+  end
+
+  def processed_external_id?(external_id)
+    return false if @accepted_ids.include?(external_id)
+
+    @found_external_ids.include?(external_id)
   end
 
   def existing_orders(external_ids, lock:)
     scope = Order.where(external_id: external_ids.uniq)
     scope = scope.order(:id).lock if lock
     scope.index_by(&:external_id)
-  end
-
-  def disbursed_change(line_number, order, attrs)
-    return if order.nil? || order.disbursement_id.nil?
-
-    _key, column = FINANCIAL_COLUMNS.find { |key, _column| order.public_send(key) != attrs.fetch(key) }
-    return if column.nil?
-
-    { "line" => line_number, "column" => column, "message" => DISBURSED_MESSAGE }
   end
 
   def ensure_live_on!(merchant, ordered_on, line_number)

@@ -1,17 +1,22 @@
-class DailySettlementService
-  def self.call(as_of: Time.zone.today)
-    new(as_of:).call
+class SettleMerchantsService
+  FREQUENCIES = Merchant.disbursement_frequencies.values.freeze
+
+  def self.call(frequency:, as_of: Time.zone.today)
+    new(frequency:, as_of:).call
   end
 
-  def initialize(as_of:)
+  def initialize(frequency:, as_of:)
+    raise ArgumentError, "unknown frequency" unless FREQUENCIES.include?(frequency)
+
+    @frequency = frequency
     @as_of = as_of.to_date
   end
 
   def call
-    Merchant.find_each { |merchant| settle_through(merchant) }
+    merchants.find_each { |merchant| settle_through(merchant) }
 
     previous_month = as_of.beginning_of_month.prev_month
-    Merchant.find_each do |merchant|
+    merchants.find_each do |merchant|
       ChargeMonthlyFeeService.call(
         merchant: merchant,
         year: previous_month.year,
@@ -22,7 +27,11 @@ class DailySettlementService
 
   private
 
-  attr_reader :as_of
+  attr_reader :frequency, :as_of
+
+  def merchants
+    Merchant.where(disbursement_frequency: frequency)
+  end
 
   def settle_through(merchant)
     last_disbursed_on = merchant.disbursements.maximum(:disbursed_on)

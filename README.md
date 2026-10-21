@@ -52,7 +52,9 @@ Postgres defaults to `localhost:5434` so it does not collide with other local da
 
 ## CSV import
 
-From **CSV imports**, choose Merchant or Orders and upload one `;`-separated CSV. The file is stored in the bucket as `{kind}-{timestamp}.csv` before the import record is created. The request returns immediately with status `processing`. Solid Queue reads the file in batches and, when the file has no row errors, backfills disbursements and monthly fees. A row error rolls the whole file back and the import page offers a plain-text download of the line and column.
+From **CSV imports**, choose Merchant or Orders and upload one `;`-separated CSV. The file is stored in the bucket as `{kind}-{timestamp}.csv` before the import record is created. The request returns immediately with status `processing`. Solid Queue reads the file in batches. A successful import stores the rows and does not settle them. `DailyMerchantsJob` and `WeeklyMerchantsJob` settle what is already stored.
+
+A row error rolls the whole file back. Nothing from that CSV is stored, and no settlement job is enqueued. The import page offers a plain-text download of the line and column. An `id` that is already stored is one of those errors. The download reads `line 2, column id: has already been processed and cannot be imported again`. The same `id` repeated only inside a file that has not been stored yet keeps the last row.
 
 The show page subscribes over Action Cable while the import is `pending` or `processing`. When the status changes, the page replaces the status block in place. A finished import does not subscribe. Solid Cable carries the message from the worker process to the web process.
 
@@ -64,22 +66,22 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 
 ## Settlement rules implemented
 
-- Orders are disbursed exactly once.
-- Daily merchants settle every day; weekly merchants settle on the weekday of `live_on`.
-- A run pays every eligible day up to that day, one disbursement per day. Daily merchants get each missed day. Weekly merchants get only the weekday of `live_on`. An order belongs to one disbursement. Orders in that disbursement have `ordered_on <=` the day before it, and `ordered_on >= live_on`.
+- Orders are disbursed exactly once. Running a job again for a day that already has a disbursement does not insert another one, and does not insert a second monthly fee for the same merchant and month.
+- `DailyMerchantsJob` settles `DAILY` merchants. `WeeklyMerchantsJob` settles `WEEKLY` merchants. Both run at 07:00 UTC every day. The weekly job runs every day because each merchant is paid on the weekday of their own `live_on`. On any other weekday that merchant gets no disbursement.
+- The first run for a merchant starts at `live_on`. A later run starts the day after that merchant's latest disbursement. The run pays every eligible day up to the calendar day, one disbursement per day. Daily merchants get each missed day. Weekly merchants get only the weekday of `live_on`. An order belongs to one disbursement. Orders in that disbursement have `ordered_on <=` the day before it, and `ordered_on >= live_on`.
+- An amount with a digit after the second decimal place rounds up to the next cent before commission is calculated. `1.239` becomes `1.24 €`. `1.230` stays `1.23 €`.
 - Commission is calculated per order and rounded up to the next cent: `< 50€` → 1.00%, `50€..<300€` → 0.95%, `≥ 300€` → 0.85%.
 - Net to merchant = gross − order commissions. Monthly fees are stored, not subtracted.
-- Every run closes the previous calendar month when that fee does not exist yet. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month.
-- A month with no commissions, inside the closed range, is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
-- Backfill uses the CSV clock (`max(ordered_on)`), so November 2023 orders are disbursed and November 2023 monthly fees are not charged.
+- Each job closes the previous calendar month for its own merchants when that fee does not exist yet. It does not close older months. `ChargeMonthlyFeeService` does not create a second row for the same merchant and month.
+- A month with no commissions is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it. There is no pro-rata.
 
 ## Yearly report
 
 A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022.
 
-The page filters by year as you type, sorts every column, and pages 10 years at a time. It stays subscribed over Action Cable. A new or changed disbursement or monthly fee refreshes the table, at most once every 2 seconds, and the settlement job sends one more refresh when it finishes. The current year filter, sort, and page stay in the URL.
+The page filters by year as you type, sorts every column, and pages 10 years at a time. It stays subscribed over Action Cable. A new or changed disbursement or monthly fee refreshes the table, at most once every 2 seconds, and each settlement job sends one more refresh when it finishes. The current year filter, sort, and page stay in the URL.
 
-After importing and backfilling, open **Yearly report** or run:
+The table is the official file as settled through 14 Nov 2023. Importing a CSV does not settle it, and the jobs do not rebuild this table. Open **Yearly report** or run:
 
 ```bash
 bin/rails runner 'puts YearlyReportService.call.inspect'

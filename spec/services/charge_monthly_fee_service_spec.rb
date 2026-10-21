@@ -43,10 +43,13 @@ RSpec.describe ChargeMonthlyFeeService do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 2_900)
 
       described_class.call(merchant: merchant, year: 2022, month: 9)
+      fee = MonthlyFee.find_by!(merchant: merchant, year: 2022, month: 9)
 
-      expect {
-        described_class.call(merchant: merchant, year: 2022, month: 9)
-      }.not_to change(MonthlyFee, :count)
+      described_class.call(merchant: merchant, year: 2022, month: 9)
+
+      expect(MonthlyFee.where(merchant: merchant).pluck(:id, :commissions_cents, :charged_cents)).to eq([
+        [ fee.id, 0, 2_900 ]
+      ])
     end
 
     it "charges the full minimum for the live_on month, including a start on the last day" do

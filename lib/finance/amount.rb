@@ -11,8 +11,10 @@ module Finance
       negative = normalized.start_with?("-")
       absolute = normalized.delete_prefix("-")
       whole, fraction = absolute.split(".", 2)
-      fraction = (fraction || "").ljust(2, "0")[0, 2]
-      cents = (whole.to_i * CENTS_PER_EURO) + fraction.to_i
+      fraction ||= ""
+      truncated = (whole.to_i * CENTS_PER_EURO) + fraction.ljust(2, "0")[0, 2].to_i
+      remainder = fraction.length > 2 && !fraction[2..].match?(/\A0*\z/)
+      cents = !negative && remainder ? truncated + 1 : truncated
       negative ? -cents : cents
     end
 

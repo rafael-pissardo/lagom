@@ -33,11 +33,11 @@ RSpec.describe YearlyReportRefreshService do
 
   it "refreshes again when a settlement job finishes" do
     expect {
-      DailySettlementJob.perform_now(Date.new(2022, 10, 2))
+      DailyMerchantsJob.perform_now(Date.new(2022, 10, 2))
     }.to have_broadcasted_to("yearly_report")
 
     expect {
-      BackfillSettlementsJob.perform_now
+      WeeklyMerchantsJob.perform_now(Date.new(2022, 10, 2))
     }.to have_broadcasted_to("yearly_report")
   end
 end
