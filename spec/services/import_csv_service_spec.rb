@@ -43,7 +43,7 @@ RSpec.describe ImportCsvService do
       phases << :write if kwargs[:requires_new]
       method.call(*args, **kwargs, &block)
     end
-    expect(CsvBatchReaderService).to receive(:each).with(io: kind_of(StringIO), batch_size: 1).twice.and_wrap_original do |method, **kwargs, &block|
+    expect(CsvBatchReaderService).to receive(:each).with(io: kind_of(described_class::Stream), batch_size: 1).twice.and_wrap_original do |method, **kwargs, &block|
       phases << (phases.include?(:write) ? :read_inside : :read_outside)
       method.call(**kwargs, &block)
     end
@@ -62,6 +62,44 @@ RSpec.describe ImportCsvService do
     expect(csv_import.imported_count).to eq(2)
     expect(csv_import.failed_count).to eq(0)
     expect(Merchant.find_by!(reference: "other_group").minimum_monthly_fee_cents).to eq(1_500)
+  ensure
+    previous ? ENV["CSV_IMPORT_BATCH_SIZE"] = previous : ENV.delete("CSV_IMPORT_BATCH_SIZE")
+  end
+
+  it "validates and writes a file larger than one batch without reading it into one string" do
+    previous = ENV["CSV_IMPORT_BATCH_SIZE"]
+    ENV["CSV_IMPORT_BATCH_SIZE"] = "1"
+    body = + "id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee\n"
+    200.times do |index|
+      body << format("%08x-0000-4000-8000-%012x", index + 1, index + 1)
+      body << ";shop_#{index};shop_#{index}@test.dev;2023-02-01;DAILY;0.0\n"
+    end
+    csv_import = create(:csv_import, kind: "merchants", status: "pending")
+    largest_read = 0
+    allow(BucketService).to receive(:open) do |_key, &block|
+      io = StringIO.new(body)
+      io.define_singleton_method(:read) do |*args, **kwargs, &read_block|
+        raise "unbounded read" if args.empty? || args.first.nil?
+
+        chunk = super(*args, **kwargs, &read_block)
+        largest_read = chunk.bytesize if chunk && chunk.bytesize > largest_read
+        chunk
+      end
+      io.define_singleton_method(:gets) do |*args, **kwargs, &gets_block|
+        chunk = super(*args, **kwargs, &gets_block)
+        largest_read = chunk.bytesize if chunk && chunk.bytesize > largest_read
+        chunk
+      end
+      block.call(io)
+    end
+
+    described_class.call(csv_import: csv_import)
+
+    expect(csv_import.reload).to be_succeeded
+    expect(csv_import.imported_count).to eq(200)
+    expect(Merchant.count).to eq(200)
+    expect(largest_read).to be < body.bytesize
+    expect(largest_read).to be <= 8 * 1024
   ensure
     previous ? ENV["CSV_IMPORT_BATCH_SIZE"] = previous : ENV.delete("CSV_IMPORT_BATCH_SIZE")
   end

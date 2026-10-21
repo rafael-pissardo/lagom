@@ -19,10 +19,18 @@ RSpec.describe "Settlement pages", type: :request do
 
     get disbursements_path
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include("pages_co20220905")
+    expect(response.body).to include("Pages Co · 05/09/2022")
+    expect(response.body).not_to include("pages_co20220905")
 
     get disbursement_path(disbursement)
     expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Pages Co · 05/09/2022")
+    expect(response.body).not_to include("pages_co20220905")
+
+    get merchant_path(merchant)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Pages Co · 05/09/2022")
+    expect(response.body).not_to include("pages_co20220905")
   end
 
   it "renders monthly fees, yearly report, orders, and csv import pages" do

@@ -39,6 +39,7 @@ en:
       title: "Orders"
       empty: "No orders for this merchant."
   disbursements:
+    label: "%{merchant} · %{date}"
     index:
       title: "Disbursements"
       empty: "No disbursements yet."

@@ -66,10 +66,10 @@ RSpec.describe "Index filters", type: :request do
       create(:disbursement, merchant: deckow, disbursed_on: Date.new(2023, 1, 3), reference: "deckow_gibson20230103")
 
       get disbursements_path(q: "padberg")
-      expect(rows).to eq([ "padberg_group20230102" ])
+      expect(rows).to eq([ "Padberg Group · 02/01/2023" ])
 
       get disbursements_path(disbursed_on: "2023-01-03")
-      expect(rows).to eq([ "deckow_gibson20230103" ])
+      expect(rows).to eq([ "Deckow Gibson · 03/01/2023" ])
     end
   end
 

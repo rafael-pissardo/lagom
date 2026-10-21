@@ -1,5 +1,5 @@
 <%= render AppShellComponent.new do %>
-  <%= render PageHeaderComponent.new(title: @disbursement.reference, subtitle: @disbursement.merchant.reference) %>
+  <%= render PageHeaderComponent.new(title: @disbursement.label) %>
 
   <div class="mb-8 grid gap-4 md:grid-cols-4">
     <%= render StatComponent.new(label: t("labels.disbursed_on"), value: l(@disbursement.disbursed_on)) %>

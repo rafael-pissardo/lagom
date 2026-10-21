@@ -11,7 +11,11 @@ class Disbursement < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, only_integer: true }
   validates :disbursed_on, uniqueness: { scope: :merchant_id }
 
-  def self.build_reference(merchant_reference, disbursed_on)
-    "#{merchant_reference}#{disbursed_on.strftime('%Y%m%d')}"
+  def self.build_reference
+    SecureRandom.uuid
+  end
+
+  def label
+    I18n.t("disbursements.label", merchant: merchant.reference.split("_").map(&:capitalize).join(" "), date: I18n.l(disbursed_on))
   end
 end
