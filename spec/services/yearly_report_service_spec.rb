@@ -30,7 +30,7 @@ RSpec.describe YearlyReportService do
     merchant = create(:merchant, reference: "nye_co", live_on: Date.new(2022, 12, 1), minimum_monthly_fee_cents: 100)
     create(:order, merchant: merchant, ordered_on: Date.new(2022, 12, 31), amount_cents: 5_000)
 
-    DailySettlementService.call(as_of: Date.new(2023, 1, 1))
+    SettleMerchantsService.call(frequency: "DAILY", as_of: Date.new(2023, 1, 1))
 
     rows = described_class.call.index_by(&:year)
 

@@ -1,5 +1,6 @@
 class ImportCsvService::MerchantsService
   include ImportCsvService::CsvRow
+  include ImportCsvService::IdentityLock
   include UuidHelper
 
   def self.csv_headers
@@ -19,6 +20,7 @@ class ImportCsvService::MerchantsService
 
   def initialize(merchant_cache:)
     @merchant_cache = merchant_cache
+    @accepted_ids = Set.new
     reset_claims!
   end
 
@@ -27,10 +29,17 @@ class ImportCsvService::MerchantsService
     merchant_cache.reset!
   end
 
-  def prepare_batch(batch, **)
+  def prepare_batch(batch, lock: false)
     parsed, errors = parse_batch(batch)
-    kept = last_entries(parsed, :id)
-    remember(kept)
+    ids = parsed.map { |_line, attrs| attrs.fetch(:id) }
+    if lock
+      lock_identities("merchants", ids)
+      merchant_cache.forget_ids(ids)
+    end
+    remember(parsed)
+    errors.concat(already_processed_errors(parsed))
+    fresh = parsed.reject { |_line, attrs| processed_id?(attrs.fetch(:id)) }
+    kept = last_entries(fresh, :id)
     errors.concat(claim_entries(kept))
     [ kept.map(&:last), errors ]
   end
@@ -55,15 +64,18 @@ class ImportCsvService::MerchantsService
     }
   end
 
-  def upsert(rows)
+  def write(rows)
     return if rows.empty?
 
-    Merchant.upsert_all(rows, unique_by: :id, update_only: UPDATE_COLUMNS, returning: false)
+    fresh, own = rows.partition { |row| !accepted_ids.include?(row.fetch(:id)) }
+    Merchant.insert_all!(fresh, returning: false) if fresh.any?
+    Merchant.upsert_all(own, unique_by: :id, update_only: UPDATE_COLUMNS, returning: false) if own.any?
+    @accepted_ids.merge(rows.map { |row| row.fetch(:id) })
   end
 
   private
 
-  attr_reader :merchant_cache
+  attr_reader :merchant_cache, :accepted_ids
 
   def reset_claims!
     @owner_by_reference = {}
@@ -111,6 +123,20 @@ class ImportCsvService::MerchantsService
 
     @owner_by_reference[reference] = merchant.id
     @reference_by_id[merchant.id] ||= merchant.reference
+  end
+
+  def already_processed_errors(entries)
+    entries.filter_map do |line_number, attrs|
+      next unless processed_id?(attrs.fetch(:id))
+
+      { "line" => line_number, "column" => "id", "message" => ImportCsvService::ALREADY_PROCESSED_MESSAGE }
+    end
+  end
+
+  def processed_id?(id)
+    return false if accepted_ids.include?(id)
+
+    !merchant_cache.by_id(id).nil?
   end
 
   def claim_entries(entries)

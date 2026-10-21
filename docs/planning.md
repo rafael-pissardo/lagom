@@ -12,24 +12,24 @@ Source: [seQura backend challenge](https://sequra.github.io/backend-challenge/) 
 
 - 50 merchants (`live_on` from 2022-09-04 to 2023-02-01; 36 DAILY, 14 WEEKLY) and 1,309,023 orders (`created_at` from 2022-09-04 to 2023-11-07).
 - Commission per order: below 50 € = 1%; from 50 € inclusive up to but not including 300 € = 0.95%; 300 € or more = 0.85%.
-- Round **up** to 2 decimal places on every commission.
+- Round **up** to 2 decimal places on every commission. An amount with a digit after the second decimal place also rounds up to the next cent before that commission is calculated: `1.239` becomes 124 cents, `1.230` stays 123 cents.
 - Merchant net = order gross − commissions. The monthly fee is not part of that net.
-- Monthly fee at the start of the next month: if the previous calendar month's commissions are below `minimum_monthly_fee`, store the difference. No pro-rata. A month with no commission, inside the closed range below, is charged the full minimum.
+- Monthly fee at the start of the next month: if the previous calendar month's commissions are below `minimum_monthly_fee`, store the difference. No pro-rata. A month with no commission is charged the full minimum. The first month is charged in full even when `live_on` falls in the middle of it.
 - The daily job must **finish by** 08:00 UTC. Solid Queue recurring therefore fires at **07:00 UTC**, not at 08:00.
 - An order before `live_on` is an invalid row. An order with `ordered_on >= live_on` is accepted.
 - No orders in the window means no disbursement.
 
 ## Three adjustments on top of that reading
 
-- **Backfill clock.** The CSV ends on 2023-11-07. If the cron used "today" (2026-10-16), zero-commission catch-up would create minimums from 2024 through 2026 and dominate the report. The import does not use that date. Disbursement and monthly fee use different clocks. The order of 2023-11-07 becomes eligible the next morning (daily) or on the next `live_on` weekday (weekly, at most 7 days later). Disbursement backfill simulates each day from `live_on` through 2023-11-14. No orders in the window means no disbursement. A monthly fee closes only a month whose 1st of the following month has already passed in that world: per merchant, from the `live_on` month through October 2023. November 2023 has orders and no monthly fee, because 2023-12-01 never arrives, and the live cron does not go back to charge it. After deploy, the live cron closes only the due day and the immediately previous month. It does not scan the years when the system did not exist. If the app stays up, the first live monthly fee is on 2026-11-01, for October 2026, at the full minimum.
+- **Two jobs, no backfill.** `DailyMerchantsJob` settles `DAILY` merchants. `WeeklyMerchantsJob` settles `WEEKLY` merchants. Both fire at 07:00 UTC every day, because each weekly merchant is paid on the weekday of their own `live_on`. Import stores rows and does not settle them. The first run for a merchant starts at `live_on`. A later run starts the day after that merchant's latest disbursement and pays every eligible day up to the calendar day, one disbursement per day. Running the same day again does not insert another disbursement or another monthly fee. Each job closes only the immediately previous month, and only for its own merchants. It does not close older months.
 - **A rigid window drops orders.** The normal daily window is `ordered_on = yesterday`. The weekly window, on the `live_on` weekday, is `D-7..D-1`. The production query takes **undisbursed** orders with `ordered_on <= yesterday` and `ordered_on >= live_on`, and the weekly merchant runs only on the right weekday. When the job is on time, that set is the window. If a day fails, the next run catches up. That is what makes "exactly once" true.
-- **No notification on GET.** Every state-changing action (POST/PATCH/DELETE), every failure, and every async acceptance returns a positive or negative flash. A successful read GET shows no toast. When the job finishes, a Turbo Stream updates the import screen.
+- **No notification on GET.** Every state-changing action (POST/PATCH/DELETE), every failure, and every async acceptance returns a positive or negative flash. A successful read GET shows no toast. When the import job finishes, a Turbo Stream updates the import screen. When a settlement job finishes, the yearly report refreshes.
 
-There is no manual order form. A new order arrives through another CSV. The daily job disburses what is already stored.
+There is no manual order form. A new order arrives through another CSV. The two jobs disburse what is already stored.
 
 ## Money
 
-`Finance::Amount`, in cents, using `Integer` (Ruby's arbitrary precision). It can be reused later: cents, a ceiling at 2 decimal places, and euro formatting. The Money gem is not used. The rule is a ceiling, not the gem's default rounding, and the only currency is EUR. The 1% / 0.95% / 0.85% bands live in `Commission`, which calls `Finance::Amount`. Those bands are a rule of this product, not of the money module.
+`Finance::Amount`, in cents, using `Integer` (Ruby's arbitrary precision). It can be reused later: cents, a ceiling at 2 decimal places, and euro formatting. A stored amount with a remainder after two decimal places rounds up to the next cent (`1.239` → 124). A remainder of zeros does not (`1.230` → 123). The Money gem is not used. The rule is a ceiling, not the gem's default rounding, and the only currency is EUR. The 1% / 0.95% / 0.85% bands live in `Commission`, which calls `Finance::Amount`. Those bands are a rule of this product, not of the money module.
 
 `0.95%` of 61.74 €: `(6174 * 95).ceildiv(10_000) = 59` cents = 0.59 €. No `Float`.
 
@@ -55,18 +55,17 @@ Indexes, aligned with validations and lookups:
 - lists: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
 - checks: frequency in `DAILY`/`WEEKLY`, cents `>= 0`, presence via `null: false`
 
-A zero amount is accepted. A negative amount, a missing field, an unknown merchant, or an order before `live_on` is a row error. One row error rolls the whole file back. Nothing from that CSV is stored.
+A zero amount is accepted. A negative amount, a missing field, an unknown merchant, or an order before `live_on` is a row error. An `id` that is already stored is a row error too: the error file says `has already been processed and cannot be imported again`. One row error rolls the whole file back. Nothing from that CSV is stored, and no settlement job is enqueued. The same `id` repeated only inside a file that has not been stored yet keeps the last row.
 
 ```mermaid
 flowchart TD
   upload[ImportCsvService] --> importJob[ImportCsvJob]
   importJob --> merchants[Merchant]
   importJob --> orders[Order]
-  importJob --> backfill[BackfillSettlementsJob]
-  cron[DailySettlementJob_07UTC] --> disburse[DisburseMerchantService]
-  cron --> monthly[ChargeMonthlyFeeService]
-  backfill --> disburse
-  backfill --> monthly
+  daily[DailyMerchantsJob_07UTC] --> disburse[DisburseMerchantService]
+  weekly[WeeklyMerchantsJob_07UTC] --> disburse
+  daily --> monthly[ChargeMonthlyFeeService]
+  weekly --> monthly
   disburse --> disbursements[Disbursement]
   disburse --> orders
   monthly --> fees[MonthlyFee]
@@ -104,7 +103,7 @@ Once signed in, one operator sees every merchant (the brief has no per-merchant 
 
 Empty states use `EmptyState`. Validation errors use `Field`. Flashes use `Flash`.
 
-The yearly report reads `disbursements` and `monthly_fees` (thousands of rows) synchronously. Import and backfill take more than 0.5 s: Solid Queue, with an immediate response.
+The yearly report reads `disbursements` and `monthly_fees` (thousands of rows) synchronously. Import takes more than 0.5 s: Solid Queue, with an immediate response.
 
 ## Security
 
@@ -120,11 +119,11 @@ The yearly report reads `disbursements` and `monthly_fees` (thousands of rows) s
 
 ## Environments and Railway
 
-- **test** and **development**: local. `docker-compose.yml` with Postgres only.
+- **test** and **development**: local. `docker-compose.yml` runs Postgres and a local S3-compatible bucket (MinIO).
 - **staging** and **production**: Railway, two environments, two Postgres databases, its own `RAILS_ENV` (`config/environments/staging.rb` starts from production).
-- Processes: web (Puma) and one worker (`bin/jobs`). In `config/queue.yml`, development, staging, and production use 1 process and 1 thread. Only one job runs at a time. The Solid Queue supervisor stays, because without it there is no worker and no recurring task. Shared volume for the uploaded CSV, because a container disk is not shared and the file is tens of MB.
+- Processes: web (Puma) and one worker (`bin/jobs`). In `config/queue.yml`, development, staging, and production use 1 process and 1 thread. Only one job runs at a time. The Solid Queue supervisor stays, because without it there is no worker and no recurring task. The uploaded CSV is stored in the bucket before the import record is created. The worker reads it from there.
 - Release: `bin/rails db:prepare`. It does not create an operator and does not reimport the CSV.
-- Recurring in `config/recurring.yml`: 07:00 UTC.
+- Recurring in `config/recurring.yml`: `DailyMerchantsJob` and `WeeklyMerchantsJob`, both at 07:00 UTC every day.
 
 ## CI/CD
 
@@ -146,17 +145,16 @@ TDD on the calculations, before the implementation:
 - bands and ceiling, including 50 € and 300 €
 - daily window, weekly window, first cycle after `live_on`, catch-up of a missed day
 - exactly once, and running the job again does not duplicate
-- monthly fee: below, equal, above, a zero month, a partial month with no pro-rata, November 2023 outside the file clock
-- one invalid row rolls the whole file back
+- monthly fee: below, equal, above, a zero month, a partial month with no pro-rata, and a second run that does not create another fee
+- one invalid row rolls the whole file back, including an `id` that was already stored
 
 System spec only for the critical path, with a small CSV: sign in, an import that shows "processing" and ends in success or failure, yearly report with the fixture numbers. The 1.3 million row CSV is not in the spec.
 
 ## README
 
-Title `Lagom — Merchant Settlement Engine`. Meaning of lagom (balance, the right measure, Swedish origin, a fair calculation). Setup, decisions, premises, what was left out (no order form, no CORS, English UI via I18n), the yearly table filled after a local import on the file clock, and how the AI was used (Cursor to plan and implement; business rules only from the challenge text and from what was confirmed here).
+Title `Lagom — Merchant Settlement Engine`. Meaning of lagom (balance, the right measure, Swedish origin, a fair calculation). Setup, decisions, premises, what was left out (no order form, no CORS, English UI via I18n), the yearly table from the official file settled through 14 Nov 2023, and how the AI was used (Cursor to plan and implement; business rules only from the challenge text and from what was confirmed here). Import does not settle, and the jobs do not rebuild that table.
 
 Tradeoffs for the next version, in this order:
 
 - **P0.** There is no logging service, such as Datadog. Server logs are the workaround today.
 - **P1.** Railway is on the Hobby plan. It should not absorb a large data or user load. The next version measures how the infra behaves.
-- **P2.** CSVs are not stored in a bucket. After processing, the file can no longer be traced.

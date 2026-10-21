@@ -11,6 +11,8 @@ class ImportCsvService
 
   class Rejected < StandardError; end
 
+  ALREADY_PROCESSED_MESSAGE = "has already been processed and cannot be imported again"
+
   STRATEGIES = {
     "merchants" => MerchantsService,
     "orders" => OrdersService
@@ -137,7 +139,7 @@ class ImportCsvService
       errors.concat(batch_errors)
       next if errors.any?
 
-      strategy.upsert(rows)
+      strategy.write(rows)
       @imported_count += rows.size
     end
     raise Rejected if errors.any?
@@ -163,7 +165,6 @@ class ImportCsvService
       imported_count: imported_count,
       failed_count: 0
     )
-    BackfillSettlementsJob.perform_later
   end
 
   def finish_failure(message = nil)

@@ -75,13 +75,17 @@ RSpec.describe DisburseMerchantService do
 
     it "is idempotent for the same merchant and day" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
-      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 6_174)
+      order = create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 6_174)
+
+      described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
+      disbursement = Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 5))
 
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
 
-      expect {
-        described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
-      }.not_to change(Disbursement, :count)
+      expect(Disbursement.where(merchant: merchant).pluck(:id, :gross_cents, :commission_cents, :net_cents)).to eq([
+        [ disbursement.id, 6_174, 59, 6_115 ]
+      ])
+      expect(order.reload.disbursement_id).to eq(disbursement.id)
     end
 
     it "runs weekly merchants only on the live_on weekday and catches up missed days" do

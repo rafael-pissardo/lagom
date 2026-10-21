@@ -1,17 +1,32 @@
 production:
-  daily_settlement:
-    class: DailySettlementJob
+  daily_merchants:
+    class: DailyMerchantsJob
     schedule: at 7am every day
-    description: "Disburse eligible merchants and charge closed monthly fees"
+    description: "Disburse daily merchants and charge their previous monthly fee"
+
+  weekly_merchants:
+    class: WeeklyMerchantsJob
+    schedule: at 7am every day
+    description: "Disburse weekly merchants on their live_on weekday and charge their previous monthly fee"
 
 staging:
-  daily_settlement:
-    class: DailySettlementJob
+  daily_merchants:
+    class: DailyMerchantsJob
     schedule: at 7am every day
-    description: "Disburse eligible merchants and charge closed monthly fees"
+    description: "Disburse daily merchants and charge their previous monthly fee"
+
+  weekly_merchants:
+    class: WeeklyMerchantsJob
+    schedule: at 7am every day
+    description: "Disburse weekly merchants on their live_on weekday and charge their previous monthly fee"
 
 development:
-  daily_settlement:
-    class: DailySettlementJob
+  daily_merchants:
+    class: DailyMerchantsJob
     schedule: at 7am every day
-    description: "Disburse eligible merchants and charge closed monthly fees"
+    description: "Disburse daily merchants and charge their previous monthly fee"
+
+  weekly_merchants:
+    class: WeeklyMerchantsJob
+    schedule: at 7am every day
+    description: "Disburse weekly merchants on their live_on weekday and charge their previous monthly fee"
