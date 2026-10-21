@@ -139,7 +139,7 @@ class ImportCsvService
       errors.concat(batch_errors)
       next if errors.any?
 
-      strategy.upsert(rows)
+      strategy.write(rows)
       @imported_count += rows.size
     end
     raise Rejected if errors.any?

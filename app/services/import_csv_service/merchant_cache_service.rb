@@ -27,6 +27,10 @@ class ImportCsvService::MerchantCacheService
     end
   end
 
+  def forget_ids(ids)
+    ids.each { |id| @by_id.delete(id) }
+  end
+
   def load_ids(ids)
     missing = ids.compact.uniq.reject { |id| @by_id.key?(id) }
     missing.each_slice(@batch_size) do |slice|

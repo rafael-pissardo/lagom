@@ -158,7 +158,9 @@ RSpec.describe ImportCsvService do
     expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
     expect(selects(queries, "orders")).to eq(4)
     expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"orders"') }).to eq(2)
-    expect(upserts(queries, "orders")).to eq(2)
+    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(2)
+    expect(upserts(queries, "orders")).to eq(0)
+    expect(queries.count { |sql| sql.start_with?("INSERT") && sql.include?('"orders"') }).to eq(2)
     expect(queries.grep(/\AINSERT/).grep(/"orders"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })
     expect(Order.count).to eq(2)
   ensure
@@ -238,7 +240,9 @@ RSpec.describe ImportCsvService do
     expect(selects(queries, "merchants")).to eq(8)
     expect(queries.none? { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to be true
     expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
-    expect(upserts(queries, "merchants")).to eq(2)
+    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(2)
+    expect(upserts(queries, "merchants")).to eq(0)
+    expect(queries.count { |sql| sql.start_with?("INSERT") && sql.include?('"merchants"') }).to eq(2)
     expect(queries.grep(/\AINSERT/).grep(/"merchants"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })
     expect(Merchant.count).to eq(3)
   ensure
@@ -439,7 +443,7 @@ RSpec.describe ImportCsvService do
       id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
       86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;info@padberg-group.com;2023-02-01;DAILY;0.0
     CSV
-    allow(Merchant).to receive(:upsert_all).and_raise(ActiveRecord::RecordNotUnique.new("duplicate key"))
+    allow(Merchant).to receive(:insert_all!).and_raise(ActiveRecord::RecordNotUnique.new("duplicate key"))
 
     described_class.call(csv_import: csv_import)
 
@@ -793,6 +797,89 @@ RSpec.describe ImportCsvService do
     expect(csv_import.reload).to be_succeeded
     expect(order.amount_cents).to eq(124)
     expect(order.commission_cents).to eq(2)
+  end
+
+  describe "two imports at once" do
+    self.use_transactional_tests = false
+
+    after do
+      Order.delete_all
+      Merchant.delete_all
+      CsvImport.delete_all
+    end
+
+    it "keeps the first committed order when another import writes the same id" do
+      create(:merchant, reference: "padberg_group", live_on: Date.new(2023, 2, 1))
+      first = create(:csv_import, kind: "orders")
+      second = create(:csv_import, kind: "orders")
+      store_csv(first, <<~CSV)
+        id;merchant_reference;amount;created_at
+        e653f3e14bc4;padberg_group;10.00;2023-02-01
+      CSV
+      store_csv(second, <<~CSV)
+        id;merchant_reference;amount;created_at
+        e653f3e14bc4;padberg_group;102.29;2023-02-02
+      CSV
+
+      import_together(first, second, ImportCsvService::OrdersService)
+
+      winner, loser = winner_and_loser(first, second)
+      order = Order.find_by!(external_id: "e653f3e14bc4")
+      expect(Order.count).to eq(1)
+      expect(loser.error_rows).to eq([ already_processed_error(2) ])
+      expect(order.amount_cents).to eq(winner == first ? 1_000 : 10_229)
+      expect(order.ordered_on).to eq(winner == first ? Date.new(2023, 2, 1) : Date.new(2023, 2, 2))
+    end
+
+    it "keeps the first committed merchant when another import writes the same id" do
+      first = create(:csv_import, kind: "merchants")
+      second = create(:csv_import, kind: "merchants")
+      store_csv(first, <<~CSV)
+        id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+        86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;first@padberg.test;2023-02-01;DAILY;0.0
+      CSV
+      store_csv(second, <<~CSV)
+        id;reference;email;live_on;disbursement_frequency;minimum_monthly_fee
+        86312006-4d7e-45c4-9c28-788f4aa68a62;padberg_group;second@padberg.test;2023-02-01;DAILY;0.0
+      CSV
+
+      import_together(first, second, ImportCsvService::MerchantsService)
+
+      winner, loser = winner_and_loser(first, second)
+      merchant = Merchant.find("86312006-4d7e-45c4-9c28-788f4aa68a62")
+      expect(Merchant.count).to eq(1)
+      expect(loser.error_rows).to eq([ already_processed_error(2) ])
+      expect(merchant.email).to eq(winner == first ? "first@padberg.test" : "second@padberg.test")
+    end
+
+    def import_together(first, second, service_class)
+      arrived = Queue.new
+      release = Queue.new
+      allow_any_instance_of(service_class).to receive(:guard_concurrent_changes!).and_wrap_original do |method, *args, **kwargs, &block|
+        arrived << true
+        release.pop
+        method.call(*args, **kwargs, &block)
+      end
+
+      threads = [ first, second ].map do |csv_import|
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            described_class.call(csv_import: csv_import)
+          end
+        end
+      end
+
+      Timeout.timeout(5) { 2.times { arrived.pop } }
+    ensure
+      2.times { release << true }
+      threads&.each { |thread| thread.join(5) }
+    end
+
+    def winner_and_loser(first, second)
+      imports = [ first, second ].map(&:reload)
+      expect(imports.map(&:status)).to contain_exactly("succeeded", "failed")
+      [ imports.find(&:succeeded?), imports.find(&:failed?) ]
+    end
   end
 
   def already_processed_error(line)

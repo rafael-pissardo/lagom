@@ -1,5 +1,6 @@
 class ImportCsvService::MerchantsService
   include ImportCsvService::CsvRow
+  include ImportCsvService::IdentityLock
   include UuidHelper
 
   def self.csv_headers
@@ -28,8 +29,13 @@ class ImportCsvService::MerchantsService
     merchant_cache.reset!
   end
 
-  def prepare_batch(batch, **)
+  def prepare_batch(batch, lock: false)
     parsed, errors = parse_batch(batch)
+    ids = parsed.map { |_line, attrs| attrs.fetch(:id) }
+    if lock
+      lock_identities("merchants", ids)
+      merchant_cache.forget_ids(ids)
+    end
     remember(parsed)
     errors.concat(already_processed_errors(parsed))
     fresh = parsed.reject { |_line, attrs| processed_id?(attrs.fetch(:id)) }
@@ -58,10 +64,12 @@ class ImportCsvService::MerchantsService
     }
   end
 
-  def upsert(rows)
+  def write(rows)
     return if rows.empty?
 
-    Merchant.upsert_all(rows, unique_by: :id, update_only: UPDATE_COLUMNS, returning: false)
+    fresh, own = rows.partition { |row| !accepted_ids.include?(row.fetch(:id)) }
+    Merchant.insert_all!(fresh, returning: false) if fresh.any?
+    Merchant.upsert_all(own, unique_by: :id, update_only: UPDATE_COLUMNS, returning: false) if own.any?
     @accepted_ids.merge(rows.map { |row| row.fetch(:id) })
   end
 

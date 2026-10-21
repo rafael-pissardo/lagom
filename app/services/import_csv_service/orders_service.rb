@@ -1,5 +1,6 @@
 class ImportCsvService::OrdersService
   include ImportCsvService::CsvRow
+  include ImportCsvService::IdentityLock
 
   def self.csv_headers
     COLUMNS.values.uniq
@@ -52,10 +53,12 @@ class ImportCsvService::OrdersService
     }
   end
 
-  def upsert(rows)
+  def write(rows)
     return if rows.empty?
 
-    Order.upsert_all(rows, unique_by: :external_id, update_only: UPDATE_COLUMNS, returning: false)
+    fresh, own = rows.partition { |row| !@accepted_ids.include?(row.fetch(:external_id)) }
+    Order.insert_all!(fresh, returning: false) if fresh.any?
+    Order.upsert_all(own, unique_by: :external_id, update_only: UPDATE_COLUMNS, returning: false) if own.any?
     @accepted_ids.merge(rows.map { |row| row.fetch(:external_id) })
   end
 
@@ -74,6 +77,7 @@ class ImportCsvService::OrdersService
   end
 
   def already_processed_errors(entries, lock:)
+    lock_identities("orders", entries.map { |_line, attrs| attrs.fetch(:external_id) }) if lock
     @found_external_ids = existing_external_ids(entries, lock:)
     entries.filter_map do |line_number, attrs|
       external_id = attrs.fetch(:external_id)
