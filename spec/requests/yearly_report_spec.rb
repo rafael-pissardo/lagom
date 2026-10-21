@@ -34,7 +34,10 @@ RSpec.describe "Yearly report", type: :request do
     create(:disbursement, merchant:, disbursed_on: Date.new(2022, 6, 1), reference: "one", gross_cents: 100, commission_cents: 10, net_cents: 90)
     create(:disbursement, merchant:, disbursed_on: Date.new(2022, 6, 2), reference: "two", gross_cents: 100, commission_cents: 10, net_cents: 90)
     create(:disbursement, merchant:, disbursed_on: Date.new(2023, 6, 1), reference: "three", gross_cents: 500, commission_cents: 40, net_cents: 460)
-    create(:monthly_fee, merchant:, year: 2023, month: 6, commissions_cents: 40, charged_cents: 20)
+    fee = create(:monthly_fee, merchant:, year: 2023, month: 6, commissions_cents: 40, charged_cents: 20)
+    travel_to(Time.zone.local(2023, 6, 15)) do
+      create(:monthly_fee_adjustment, monthly_fee: fee, commissions_cents: 40, credit_cents: 15)
+    end
 
     get reports_yearly_path(year: "2022")
     expect(rows).to eq(%w[2022])
@@ -55,6 +58,12 @@ RSpec.describe "Yearly report", type: :request do
     expect(rows).to eq(%w[2022 2023])
 
     get reports_yearly_path(sort: "monthly_fees_count", direction: "desc")
+    expect(rows).to eq(%w[2023 2022])
+    expect(page.at_css("tbody tr").text).to include("0.15 €").and include("0.35 €")
+    expect(header("Monthly fee adjustments")).to be_present
+    expect(header("Total monthly fees")).to be_present
+
+    get reports_yearly_path(sort: "monthly_fee_adjustments", direction: "desc")
     expect(rows).to eq(%w[2023 2022])
 
     get reports_yearly_path(sort: "amount_disbursed", direction: "nope")

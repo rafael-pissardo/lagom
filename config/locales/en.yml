@@ -58,7 +58,8 @@ en:
       amount_disbursed: "Amount disbursed to merchants"
       order_fees: "Amount of order fees"
       monthly_fees_count: "Number of monthly fees charged"
-      monthly_fees_amount: "Amount of monthly fees charged"
+      monthly_fee_adjustments: "Monthly fee adjustments"
+      monthly_fees_amount: "Total monthly fees"
   csv_imports:
     kinds:
       merchants: "Merchant"

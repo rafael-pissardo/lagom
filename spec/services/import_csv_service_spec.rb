@@ -158,7 +158,7 @@ RSpec.describe ImportCsvService do
     expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
     expect(selects(queries, "orders")).to eq(4)
     expect(queries.count { |sql| sql.include?("FOR UPDATE") && sql.include?('"orders"') }).to eq(2)
-    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(2)
+    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(1)
     expect(upserts(queries, "orders")).to eq(0)
     expect(queries.count { |sql| sql.start_with?("INSERT") && sql.include?('"orders"') }).to eq(2)
     expect(queries.grep(/\AINSERT/).grep(/"orders"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })
@@ -240,7 +240,7 @@ RSpec.describe ImportCsvService do
     expect(selects(queries, "merchants")).to eq(8)
     expect(queries.none? { |sql| sql.include?("LIMIT") && sql.include?('"merchants"') }).to be true
     expect(queries.none? { |sql| sql.include?("FOR UPDATE") && sql.include?('"merchants"') }).to be true
-    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(3)
+    expect(queries.count { |sql| sql.include?("pg_advisory_xact_lock") }).to eq(1)
     expect(upserts(queries, "merchants")).to eq(0)
     expect(queries.count { |sql| sql.start_with?("INSERT") && sql.include?('"merchants"') }).to eq(2)
     expect(queries.grep(/\AINSERT/).grep(/"merchants"/)).to all(satisfy { |sql| !sql.include?("RETURNING") })

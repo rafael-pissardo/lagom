@@ -42,7 +42,8 @@ There is no N×N in the domain. "Exactly once" is `orders.disbursement_id`, not 
 - `merchants` — `id` is the UUID from the CSV. Unique `reference`, `email`, `live_on` date, `disbursement_frequency` (`DAILY`/`WEEKLY`), `minimum_monthly_fee_cents`.
 - `orders` — generated UUID `id`. The CSV id (12 hex characters in the sample, not a UUID) is stored in a unique `external_id`. `merchant_id`, `ordered_on` date, `amount_cents`, `commission_cents`, `disbursement_id` null until paid. The CSV `created_at` column becomes `ordered_on`. `t.timestamps` still keeps `created_at` / `updated_at` for the database row.
 - `disbursements` — uuid, `merchant_id`, `disbursed_on`, unique `reference` (`{reference}{YYYYMMDD}`, letters, digits, and the underscore the merchant reference already has), `gross_cents`, `commission_cents`, `net_cents`. Unique `(merchant_id, disbursed_on)`.
-- `monthly_fees` — uuid, `merchant_id`, `year`, `month`, `commissions_cents`, `charged_cents`. Unique `(merchant_id, year, month)`. A row with `charged_cents = 0` means "month evaluated, nothing charged" and keeps the operation idempotent. The report counts only `charged_cents > 0`.
+- `monthly_fees` — uuid, `merchant_id`, `year`, `month`, `commissions_cents`, `charged_cents`. Unique `(merchant_id, year, month)`. A row with `charged_cents = 0` means "month evaluated, nothing charged" and keeps the operation idempotent. The report counts only `charged_cents > 0`. The row is never rewritten after it is stored.
+- `monthly_fee_adjustments` — uuid, `monthly_fee_id`, `commissions_cents`, `credit_cents`. Unique `(monthly_fee_id, commissions_cents)`. Written by the jobs when a later import raises the commissions of a month that already has a fee: `commissions_cents` is the new month total, `credit_cents` is the part of the original charge that total now covers, net of earlier adjustments. A row with `credit_cents = 0` means "re-evaluated, nothing more to return". The yearly report sums `credit_cents` by the year of `created_at`, the month the adjustment was recorded. Total monthly fees for a year are that year's `charged_cents` plus the credits recorded in that year. A `carried` adjustment belongs to the next fee the job charges and records commissions from months that have no fee of their own.
 - `users` — the operator, a Devise `User` (`database_authenticatable` and `validatable`). No public signup, no password recovery, no confirmation, and no lock.
 - `csv_imports` — job status (`pending`, `processing`, `succeeded`, `failed`), counters, bounded errors.
 
@@ -50,7 +51,7 @@ Foreign keys use `on_delete: :restrict`. Business dates are UTC (`config.time_zo
 
 Indexes, aligned with validations and lookups:
 
-- unique: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `users.email`
+- unique: `merchants.reference`, `orders.external_id`, `disbursements.reference`, `(disbursements.merchant_id, disbursed_on)`, `(monthly_fees.merchant_id, year, month)`, `(monthly_fee_adjustments.monthly_fee_id, commissions_cents)`, `users.email`
 - job: `(orders.merchant_id, ordered_on) WHERE disbursement_id IS NULL`
 - lists: `orders (merchant_id, ordered_on)`, `disbursements.disbursed_on`, `monthly_fees.year`, `merchants.disbursement_frequency`
 - checks: frequency in `DAILY`/`WEEKLY`, cents `>= 0`, presence via `null: false`
