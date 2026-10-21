@@ -21,24 +21,57 @@ RSpec.describe DisburseMerchantService do
       expect(Order.includes(:disbursement).find(order.id).disbursement).to eq(disbursement)
     end
 
-    it "locks the merchant row and the eligible orders before paying them" do
+    it "locks the merchant row and sums the orders in the database before paying them" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 6_174)
-      queries = []
-      callback = ->(*, payload) { queries << payload[:sql] }
 
-      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
-        described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
-      end
+      queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5)) }
 
       merchant_lock = queries.find { |sql| sql.include?('FROM "merchants"') && sql.include?("FOR UPDATE") }
-      orders_lock = queries.find { |sql| sql.include?('FROM "orders"') && sql.include?("FOR UPDATE") && sql.include?('"disbursement_id" IS NULL') }
+      totals = queries.find { |sql| sql.include?('SUM("orders"."amount_cents")') && sql.include?("GROUP BY") && sql.include?('"disbursement_id" IS NULL') }
       insert_at = queries.index { |sql| sql.include?('INSERT INTO "disbursements"') }
 
       expect(merchant_lock).to include('WHERE "merchants"."id"')
-      expect(orders_lock).to include('WHERE')
       expect(queries.index(merchant_lock)).to be < insert_at
-      expect(queries.index(orders_lock)).to be < insert_at
+      expect(queries.index(totals)).to be < insert_at
+      expect(queries.none? { |sql| sql.include?('SELECT "orders".*') }).to be true
+    end
+
+    it "pays only the settlement days that have pending orders, without visiting the empty days" do
+      merchant = create(:merchant, reference: "old_co", live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
+      create(:order, merchant: merchant, ordered_on: Date.new(2023, 11, 7), amount_cents: 2_000, commission_cents: 20)
+
+      queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2026, 10, 21)) }
+
+      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :net_cents)).to eq([
+        [ Date.new(2022, 9, 5), 990 ],
+        [ Date.new(2023, 11, 8), 1_980 ]
+      ])
+      expect(merchant.orders.undisbursed.count).to eq(0)
+      expect(queries.count { |sql| sql.start_with?("INSERT") || sql.start_with?("UPDATE") }).to eq(2)
+      expect(queries.size).to be < 15
+    end
+
+    it "pays the settlement days in batches, each in its own transaction" do
+      stub_const("DisburseMerchantService::BATCH_DAYS", 2)
+      merchant = create(:merchant, reference: "batch_co", live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY")
+      (4..8).each do |day|
+        create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, day), amount_cents: day * 1_000, commission_cents: day * 10)
+      end
+
+      queries = capture_sql { described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 9)) }
+
+      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
+        [ Date.new(2022, 9, 5), 4_000 ],
+        [ Date.new(2022, 9, 6), 5_000 ],
+        [ Date.new(2022, 9, 7), 6_000 ],
+        [ Date.new(2022, 9, 8), 7_000 ],
+        [ Date.new(2022, 9, 9), 8_000 ]
+      ])
+      expect(merchant.orders.undisbursed.count).to eq(0)
+      expect(queries.count { |sql| sql.include?('INSERT INTO "disbursements"') }).to eq(3)
+      expect(queries.count { |sql| sql.include?('FROM "merchants"') && sql.include?("FOR UPDATE") }).to eq(4)
     end
 
     it "rolls back when fewer orders are associated than calculated" do
@@ -186,15 +219,39 @@ RSpec.describe DisburseMerchantService do
       expect(order.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant).id)
     end
 
-    it "includes overdue orders when a previous day was missed" do
+    it "pays each missed day on its own day when previous runs were skipped" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY", reference: "daily_co")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 5_000)
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 5), amount_cents: 6_000)
 
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 7))
 
-      disbursement = Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 7))
-      expect(disbursement.gross_cents).to eq(11_000)
+      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
+        [ Date.new(2022, 9, 5), 5_000 ],
+        [ Date.new(2022, 9, 6), 6_000 ]
+      ])
     end
+
+    it "pays an order stored after the latest disbursement on the next settlement day" do
+      merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY", reference: "late_co")
+      create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
+      described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 10))
+      late = create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 2_000, commission_cents: 20)
+
+      described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 10))
+
+      expect(Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:disbursed_on, :gross_cents)).to eq([
+        [ Date.new(2022, 9, 5), 1_000 ],
+        [ Date.new(2022, 9, 6), 2_000 ]
+      ])
+      expect(late.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 6)).id)
+    end
+  end
+
+  def capture_sql
+    queries = []
+    callback = ->(*, payload) { queries << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
   end
 end

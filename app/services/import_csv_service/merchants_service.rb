@@ -1,6 +1,5 @@
 class ImportCsvService::MerchantsService
   include ImportCsvService::CsvRow
-  include ImportCsvService::IdentityLock
   include UuidHelper
 
   def self.csv_headers
@@ -29,13 +28,8 @@ class ImportCsvService::MerchantsService
     merchant_cache.reset!
   end
 
-  def prepare_batch(batch, lock: false)
+  def prepare_batch(batch, **)
     parsed, errors = parse_batch(batch)
-    ids = parsed.map { |_line, attrs| attrs.fetch(:id) }
-    if lock
-      lock_identities("merchants", ids)
-      merchant_cache.forget_ids(ids)
-    end
     remember(parsed)
     errors.concat(already_processed_errors(parsed))
     fresh = parsed.reject { |_line, attrs| processed_id?(attrs.fetch(:id)) }

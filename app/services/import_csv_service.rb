@@ -75,7 +75,9 @@ class ImportCsvService
       io.rewind
       strategy.guard_concurrent_changes!
       ActiveRecord::Base.transaction(requires_new: true) do
-        write_rows(io)
+        ActiveRecord::Base.with_advisory_lock!("csv_import:#{csv_import.kind}", transaction: true, blocking: true) do
+          write_rows(io)
+        end
       end
       true
     end

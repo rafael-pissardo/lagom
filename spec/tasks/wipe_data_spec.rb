@@ -11,7 +11,7 @@ RSpec.describe "lagom:wipe_data" do
     merchant = create(:merchant)
     disbursement = create(:disbursement, merchant:)
     create(:order, merchant:, disbursement:)
-    create(:monthly_fee, merchant:)
+    create(:monthly_fee_adjustment, monthly_fee: create(:monthly_fee, merchant:))
     create(:csv_import)
     SolidQueue::Job.insert({ queue_name: "default", class_name: "ImportCsvJob", created_at: Time.current, updated_at: Time.current })
     migrations_before = ActiveRecord::Base.connection.select_value("select count(*) from schema_migrations")
@@ -22,6 +22,7 @@ RSpec.describe "lagom:wipe_data" do
     expect(Order.count).to eq(0)
     expect(Disbursement.count).to eq(0)
     expect(MonthlyFee.count).to eq(0)
+    expect(MonthlyFeeAdjustment.count).to eq(0)
     expect(CsvImport.count).to eq(0)
 
     expect(User.find(user.id)).to be_present

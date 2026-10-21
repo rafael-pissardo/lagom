@@ -73,6 +73,32 @@ RSpec.describe SettleMerchantsService do
     expect(Disbursement.where(merchant: weekly)).to be_empty
   end
 
+  it "disburses 2022 orders on a 2026 run and applies their commissions to the next monthly fee" do
+    merchant = create(:merchant, reference: "late_2022", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 2_900)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 15), amount_cents: 5_000, commission_cents: 48)
+
+    described_class.call(frequency: "DAILY", as_of: Date.new(2026, 10, 21))
+
+    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([ [ Date.new(2022, 9, 16), 5_000 ] ])
+    expect(MonthlyFee.where(merchant:).pluck(:year, :month)).to eq([ [ 2026, 9 ] ])
+    fee = MonthlyFee.find_by!(merchant:, year: 2026, month: 9)
+    expect(fee.charged_cents).to eq(2_852)
+    expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:carried, :credit_cents)).to eq([ [ true, 48 ] ])
+  end
+
+  it "credits a charged month when a later import adds orders to it, without touching the fee row" do
+    merchant = create(:merchant, reference: "late_fee", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 2_900)
+    described_class.call(frequency: "DAILY", as_of: Date.new(2022, 10, 1))
+    fee = MonthlyFee.find_by!(merchant:, year: 2022, month: 9)
+    create(:order, merchant:, ordered_on: Date.new(2022, 9, 15), amount_cents: 5_000)
+
+    described_class.call(frequency: "DAILY", as_of: Date.new(2022, 10, 2))
+
+    expect(fee.reload).to have_attributes(commissions_cents: 0, charged_cents: 2_900)
+    expect(MonthlyFeeAdjustment.where(monthly_fee: fee).pluck(:commissions_cents, :credit_cents)).to eq([ [ 48, 48 ] ])
+    expect(Disbursement.where(merchant:).pluck(:disbursed_on, :gross_cents)).to eq([ [ Date.new(2022, 9, 16), 5_000 ] ])
+  end
+
   it "does not create a second disbursement or monthly fee for a day it already settled" do
     merchant = create(:merchant, reference: "same_day", live_on: Date.new(2022, 9, 1), disbursement_frequency: "DAILY", minimum_monthly_fee_cents: 100)
     order = create(:order, merchant:, ordered_on: Date.new(2022, 9, 30), amount_cents: 5_000, commission_cents: 48)

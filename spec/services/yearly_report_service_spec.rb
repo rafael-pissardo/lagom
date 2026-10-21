@@ -23,7 +23,28 @@ RSpec.describe YearlyReportService do
     expect(rows.first.amount_disbursed_cents).to eq(9_905)
     expect(rows.first.order_fees_cents).to eq(95)
     expect(rows.first.monthly_fees_count).to eq(1)
+    expect(rows.first.monthly_fee_adjustments_cents).to eq(0)
     expect(rows.first.monthly_fees_amount_cents).to eq(5)
+  end
+
+  it "counts an adjustment in the year it was recorded and adds it to that year's charged amount" do
+    merchant = create(:merchant, reference: "adjust_co", live_on: Date.new(2022, 9, 1), minimum_monthly_fee_cents: 100)
+    september = create(:monthly_fee, merchant: merchant, year: 2022, month: 9, commissions_cents: 0, charged_cents: 100)
+    create(:monthly_fee, merchant: merchant, year: 2022, month: 10, commissions_cents: 200, charged_cents: 0)
+    travel_to Time.zone.local(2022, 10, 2) do
+      create(:monthly_fee_adjustment, monthly_fee: september, commissions_cents: 40, credit_cents: 40)
+    end
+    travel_to Time.zone.local(2026, 10, 21) do
+      create(:monthly_fee_adjustment, monthly_fee: september, commissions_cents: 70, credit_cents: 30)
+    end
+
+    rows = described_class.call.index_by(&:year)
+
+    expect(rows[2022].monthly_fee_adjustments_cents).to eq(40)
+    expect(rows[2022].monthly_fees_amount_cents).to eq(140)
+    expect(rows[2026].monthly_fees_count).to eq(0)
+    expect(rows[2026].monthly_fee_adjustments_cents).to eq(30)
+    expect(rows[2026].monthly_fees_amount_cents).to eq(30)
   end
 
   it "counts a 31/12 order disbursed on 01/01 in the next year, and the December fee in 2022" do
@@ -38,6 +59,7 @@ RSpec.describe YearlyReportService do
     expect(rows[2022].amount_disbursed_cents).to eq(0)
     expect(rows[2022].order_fees_cents).to eq(0)
     expect(rows[2022].monthly_fees_count).to eq(1)
+    expect(rows[2022].monthly_fee_adjustments_cents).to eq(0)
     expect(rows[2022].monthly_fees_amount_cents).to eq(52)
     expect(rows[2023].disbursements_count).to eq(1)
     expect(rows[2023].amount_disbursed_cents).to eq(4_952)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_19_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -90,6 +90,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_210000) do
     t.index ["reference"], name: "index_merchants_on_reference", unique: true
     t.check_constraint "disbursement_frequency::text = ANY (ARRAY['DAILY'::character varying, 'WEEKLY'::character varying]::text[])", name: "merchants_disbursement_frequency_check"
     t.check_constraint "minimum_monthly_fee_cents >= 0", name: "merchants_minimum_monthly_fee_cents_non_negative"
+  end
+
+  create_table "monthly_fee_adjustments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "monthly_fee_id", null: false
+    t.integer "commissions_cents", null: false
+    t.integer "credit_cents", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "carried", default: false, null: false
+    t.index ["monthly_fee_id", "commissions_cents", "carried"], name: "index_monthly_fee_adjustments_on_fee_and_commissions", unique: true
+    t.index ["monthly_fee_id"], name: "index_monthly_fee_adjustments_on_monthly_fee_id"
+    t.check_constraint "commissions_cents >= 0", name: "monthly_fee_adjustments_commissions_cents_non_negative"
+    t.check_constraint "credit_cents >= 0", name: "monthly_fee_adjustments_credit_cents_non_negative"
   end
 
   create_table "monthly_fees", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -296,6 +309,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_19_210000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "disbursements", "merchants", on_delete: :restrict
+  add_foreign_key "monthly_fee_adjustments", "monthly_fees", on_delete: :restrict
   add_foreign_key "monthly_fees", "merchants", on_delete: :restrict
   add_foreign_key "orders", "disbursements", on_delete: :restrict
   add_foreign_key "orders", "merchants", on_delete: :restrict
