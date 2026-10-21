@@ -14,7 +14,7 @@ RSpec.describe DisburseMerchantService do
       described_class.call(merchant: merchant, as_of: Date.new(2022, 9, 5))
 
       disbursement = Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2022, 9, 5))
-      expect(disbursement.reference).to eq("padberg_group20220905")
+      expect(disbursement.reference).to match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/)
       expect(disbursement.gross_cents).to eq(6_174)
       expect(disbursement.commission_cents).to eq(59)
       expect(disbursement.net_cents).to eq(6_115)
@@ -171,10 +171,12 @@ RSpec.describe DisburseMerchantService do
       described_class.call(merchant: first, as_of: Date.new(2022, 9, 5))
       described_class.call(merchant: second, as_of: Date.new(2022, 9, 5))
 
-      expect(Disbursement.order(:reference).pluck(:reference, :disbursed_on, :gross_cents)).to eq([
-        [ "first_co20220905", Date.new(2022, 9, 5), 1_000 ],
-        [ "second_co20220905", Date.new(2022, 9, 5), 2_000 ]
+      rows = Disbursement.order(:gross_cents).pluck(:reference, :disbursed_on, :gross_cents)
+      expect(rows.map { |reference, disbursed_on, gross_cents| [ disbursed_on, gross_cents ] }).to eq([
+        [ Date.new(2022, 9, 5), 1_000 ],
+        [ Date.new(2022, 9, 5), 2_000 ]
       ])
+      expect(rows.map(&:first).uniq.size).to eq(2)
     end
 
     it "pays a Sunday weekly merchant on the next Sunday, and skips the other weekdays" do

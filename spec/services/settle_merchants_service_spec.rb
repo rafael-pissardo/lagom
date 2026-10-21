@@ -35,12 +35,9 @@ RSpec.describe SettleMerchantsService do
     described_class.call(frequency: "DAILY", as_of: Date.new(2022, 9, 5))
 
     rows = Disbursement.where(merchant: merchant).order(:disbursed_on).pluck(:reference, :net_cents)
-    expect(rows).to eq([
-      [ "gap_daily20220902", 990 ],
-      [ "gap_daily20220903", 1_980 ],
-      [ "gap_daily20220904", 2_970 ],
-      [ "gap_daily20220905", 3_960 ]
-    ])
+    expect(rows.map(&:last)).to eq([ 990, 1_980, 2_970, 3_960 ])
+    expect(rows.map(&:first).uniq.size).to eq(4)
+    expect(rows.map(&:first)).to all(match(/\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/))
     expect(Order.where(merchant: merchant).distinct.pluck(:disbursement_id).size).to eq(4)
   end
 

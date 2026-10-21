@@ -11,6 +11,8 @@ class ImportCsvService
 
   class Rejected < StandardError; end
 
+  class InvalidFile < StandardError; end
+
   ALREADY_PROCESSED_MESSAGE = "has already been processed and cannot be imported again"
 
   STRATEGIES = {
@@ -65,63 +67,52 @@ class ImportCsvService
 
   def import_file
     BucketService.open(csv_import.object_key) do |io|
-      raw = io.read
-      io.rewind
-      return false unless acceptable_file?(raw)
+      stream = Stream.new(io)
+      return false unless acceptable_stream?(stream)
 
-      read_rows(io)
+      stream.rewind
+      read_rows(stream)
       return false if errors.any?
 
-      io.rewind
+      stream.rewind
       strategy.guard_concurrent_changes!
       ActiveRecord::Base.transaction(requires_new: true) do
         ActiveRecord::Base.with_advisory_lock!("csv_import:#{csv_import.kind}", transaction: true, blocking: true) do
-          write_rows(io)
+          write_rows(stream)
         end
       end
       true
     end
+  rescue InvalidFile => error
+    errors.clear
+    reject_file(error.message)
+    false
   rescue ActiveRecord::RecordNotUnique => error
     @constraint_error = error.message
     raise Rejected
   end
 
-  def acceptable_file?(raw)
-    if raw.b.start_with?(BOM)
-      reject_file("CSV contains characters outside the SeQura files")
-      return false
-    end
-
-    text = raw.dup.force_encoding(Encoding::UTF_8)
-    unless text.valid_encoding?
-      reject_file("CSV is not valid UTF-8")
-      return false
-    end
-
-    unless text.match?(ALLOWED_CHARACTERS)
-      reject_file("CSV contains characters outside the SeQura files")
-      return false
-    end
-
-    lines = text.lines
-    header = lines.first&.chomp
-    if header.blank?
+  def acceptable_stream?(stream)
+    header_line = stream.gets
+    if header_line.nil? || header_line.strip.empty?
       reject_file("CSV has no rows")
       return false
     end
 
-    extra = header.split(";", -1) - strategy.class.csv_headers
+    extra = header_line.chomp.split(";", -1) - strategy.class.csv_headers
     if extra.any?
       reject_file("CSV is not the model used by SeQura", column: extra.first)
       return false
     end
 
-    if lines.drop(1).none? { |line| line.strip.present? }
-      reject_file("CSV has no rows")
-      return false
+    content = false
+    while (line = stream.gets)
+      content = true if line.strip.present?
     end
+    return true if content
 
-    true
+    reject_file("CSV has no rows")
+    false
   end
 
   def reject_file(message, column: nil)

@@ -77,7 +77,7 @@ class DisburseMerchantService
       {
         merchant_id: merchant.id,
         disbursed_on: disbursed_on,
-        reference: Disbursement.build_reference(merchant.reference, disbursed_on),
+        reference: Disbursement.build_reference,
         gross_cents: gross_cents,
         commission_cents: commission_cents,
         net_cents: gross_cents - commission_cents
