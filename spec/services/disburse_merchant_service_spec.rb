@@ -226,6 +226,17 @@ RSpec.describe DisburseMerchantService do
       ])
     end
 
+    it "leaves an order placed after the given cutoff undisbursed" do
+      merchant = create(:merchant, live_on: Date.new(2022, 12, 1), disbursement_frequency: "DAILY", reference: "cutoff_co")
+      inside = create(:order, merchant: merchant, ordered_on: Date.new(2022, 12, 31), amount_cents: 1_000, commission_cents: 10)
+      later = create(:order, merchant: merchant, ordered_on: Date.new(2023, 1, 2), amount_cents: 2_000, commission_cents: 20)
+
+      described_class.call(merchant: merchant, as_of: Date.new(2023, 1, 3), ordered_on_through: Date.new(2022, 12, 31))
+
+      expect(inside.reload.disbursement_id).to eq(Disbursement.find_by!(merchant: merchant, disbursed_on: Date.new(2023, 1, 3)).id)
+      expect(later.reload.disbursement_id).to be_nil
+    end
+
     it "pays an order stored after today's disbursement on the next eligible day" do
       merchant = create(:merchant, live_on: Date.new(2022, 9, 4), disbursement_frequency: "DAILY", reference: "late_co")
       create(:order, merchant: merchant, ordered_on: Date.new(2022, 9, 4), amount_cents: 1_000, commission_cents: 10)
