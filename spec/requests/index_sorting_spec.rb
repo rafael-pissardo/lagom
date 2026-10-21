@@ -59,13 +59,13 @@ RSpec.describe "Index sorting", type: :request do
     create(:disbursement, merchant:, disbursed_on: Date.new(2022, 9, 6), reference: "large", gross_cents: 500, commission_cents: 10, net_cents: 490)
 
     get disbursements_path
-    expect(rows).to eq(%w[large small])
+    expect(rows).to eq([ "Sorted · 06/09/2022", "Sorted · 05/09/2022" ])
 
     get disbursements_path(sort: "gross", direction: "asc")
-    expect(rows).to eq(%w[small large])
+    expect(rows).to eq([ "Sorted · 05/09/2022", "Sorted · 06/09/2022" ])
 
     get disbursements_path(sort: "disbursed_on", direction: "asc")
-    expect(rows).to eq(%w[small large])
+    expect(rows).to eq([ "Sorted · 05/09/2022", "Sorted · 06/09/2022" ])
   end
 
   it "sorts orders by id and amount" do
