@@ -1,4 +1,6 @@
 class YearlyReportService
+  DISBURSED_YEAR = Arel.sql("EXTRACT(YEAR FROM disbursed_on)::integer")
+
   Row = Data.define(
     :year,
     :disbursements_count,
@@ -37,8 +39,8 @@ class YearlyReportService
   end
 
   def disbursement_totals
-    @disbursement_totals ||= Disbursement.group(year_of(:disbursed_on)).pluck(
-      year_of(:disbursed_on),
+    @disbursement_totals ||= Disbursement.group(DISBURSED_YEAR).pluck(
+      DISBURSED_YEAR,
       Arel.sql("COUNT(*)"),
       Arel.sql("SUM(net_cents)"),
       Arel.sql("SUM(commission_cents)")
@@ -51,9 +53,5 @@ class YearlyReportService
       Arel.sql("COUNT(*)"),
       Arel.sql("SUM(charged_cents)")
     ).to_h { |year, count, charged| [ year, { count: count, charged: charged } ] }
-  end
-
-  def year_of(column)
-    Arel.sql("EXTRACT(YEAR FROM #{column})::integer")
   end
 end
