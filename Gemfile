@@ -43,3 +43,4 @@ gem "devise", "~> 5.0"
 gem "aws-sdk-s3", require: false
 
 gem "pagy", "~> 43.8"
+gem "with_advisory_lock", "~> 7.6"
