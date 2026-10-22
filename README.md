@@ -60,7 +60,7 @@ flowchart LR
 
 Planning: [docs/planning.md](docs/planning.md).
 
-How the AI was used: [day 1](docs/registro-da-construcao.md), [day 2](docs/registro-da-construcao-dia-2.md), [day 3](docs/registro-da-construcao-dia-3.md). Those records stay in Portuguese. Translating them would replace the original wording of the prompts, and that wording is what the audit has to preserve.
+How the AI was used: [day 1](docs/registro-da-construcao.md), [day 2](docs/registro-da-construcao-dia-2.md), [day 3](docs/registro-da-construcao-dia-3.md), [day 4](docs/registro-da-construcao-dia-4.md). Those records stay in Portuguese. Translating them would replace the original wording of the prompts, and that wording is what the audit has to preserve.
 
 ## Stack
 
