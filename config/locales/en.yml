@@ -59,7 +59,7 @@ en:
       amount_disbursed: "Amount disbursed to merchants"
       order_fees: "Amount of order fees"
       monthly_fees_count: "Number of monthly fees charged"
-      monthly_fees_amount: "Amount of monthly fees"
+      monthly_fees_amount: "Amount of monthly fees charged"
       adjustments_title: "Adjustments"
       adjustments_hint: "A credit does not change the yearly table. This list shows the year it was charged and the reference year of the fee."
       charged_year: "Charged year"
