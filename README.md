@@ -41,7 +41,7 @@ flowchart LR
 
 ### Yearly report when a €100 fee receives a €40 credit
 
-The yearly table keeps the charged amount. A €40 credit charged in 2026 on the 2022 fee leaves 2022 at €100. The adjustments table shows that credit with charged year 2026 and reference year 2022.
+The amount originally assessed is the €100 stored when the month closed. The amount after the adjustment is €60: €100 minus the €40 credit. The yearly table keeps the €100. It does not replace it with €60, and it does not report €140. The €40 is the difference between those two amounts. It is listed under Adjustments, with charged year 2026 and reference year 2022. Why the two amounts stay apart is set out under [Yearly report](#yearly-report).
 
 ```mermaid
 flowchart LR
@@ -140,9 +140,21 @@ Each index shows 10 rows per page. The footer reads `Showing 1–10 of 12 · 10 
 
 ## Yearly report
 
-A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. The amount of monthly fees is the charged amount of that year. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022. A credit charged in 2026 on that fee does not change 2022. It appears under Adjustments, with charged year 2026 and reference year 2022.
+A disbursement counts in the year of `disbursed_on`. A monthly fee counts in the year of the closed month, which is the `year` stored on the fee. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023. The December 2022 fee counts in 2022.
 
 The page filters by year as you type, sorts every column, and pages 10 years at a time. It stays subscribed over Action Cable. A new or changed disbursement or monthly fee refreshes the table, at most once every 2 seconds, and each settlement job sends one more refresh when it finishes. The current year filter, sort, and page stay in the URL.
+
+### Assessed amount and amount after adjustments
+
+**Amount of monthly fees** is the amount originally assessed: the sum of what was charged when each month of that year closed. That is the challenge column "Amount of monthly fees charged". The rows below are that figure for the official file settled through 14 Nov 2023. No order in that file arrives after its month was closed, so nothing was credited. For those two years the assessed amount and the amount after adjustments are the same.
+
+A later order cannot change a closed month. The fee stays at the amount that was charged. The job records a credit for the part of that charge the new commissions cover. Take a fee assessed at €100 that later receives a €40 credit:
+
+- **Originally assessed:** €100. The yearly table keeps this in the year of the fee.
+- **After adjustments:** €60, which is €100 minus the €40 credit.
+- **The difference** is the €40 credit. It is listed under Adjustments, with the year the credit was recorded and the reference year of the fee.
+
+The table does not replace €100 with €60, and it does not report €140. €60 is what remains after the credit. Writing it into the closed year would erase the amount that was actually charged. €140 is neither the amount charged nor the amount that remains. The challenge does not say what to do with an order that arrives after the month is closed. The requested column stays a record of what was charged, so a closed month can still be audited. The credit stays beside it, and the two amounts can be reconciled without rewriting the month.
 
 The table is the official file as settled through 14 Nov 2023. Importing a CSV does not settle it, and the jobs do not rebuild this table. Open **Yearly report** or run:
 
