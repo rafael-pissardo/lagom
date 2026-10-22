@@ -188,7 +188,7 @@ GitHub Actions runs four parallel jobs on every pull request and push:
 3. Vulnerability (`bundler-audit` + `brakeman`)
 4. Coverage (SimpleCov, minimum 95%)
 
-Deploy waits for all four. Configure Railway to deploy `staging` → staging and `main` → production.
+Configure Railway to deploy `staging` → staging and `main` → production. A pull request does not deploy.
 
 ## Railway
 

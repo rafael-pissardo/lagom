@@ -89,13 +89,3 @@ jobs:
           bundler-cache: true
       - run: bundle exec rails db:prepare
       - run: bundle exec rspec
-
-  deploy:
-    needs: [rspec, rubocop, vulnerability, coverage]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Railway deploy gate
-        run: |
-          echo "CI passed for ${GITHUB_REF_NAME}."
-          echo "Configure Railway to auto-deploy this branch."
