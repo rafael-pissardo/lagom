@@ -135,7 +135,7 @@ GitHub Actions in `.github/workflows/ci.yml`. On pull request and on push, four 
 - **vulnerability** — `bundler-audit` against the gem advisory database and `brakeman` on the code. Any finding fails the job.
 - **coverage** — the same suite with SimpleCov. It fails below 95% line coverage. It runs in parallel with the rspec job, so the suite runs twice.
 
-Deploy waits for all four. Branch `staging` publishes the Railway staging environment. Branch `main` publishes production. A pull request does not deploy.
+Branch `staging` publishes the Railway staging environment. Branch `main` publishes production. A pull request does not deploy.
 
 ## Tests
 
