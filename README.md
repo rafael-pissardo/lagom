@@ -53,12 +53,16 @@ bin/rails runner 'puts YearlyReportService.call.inspect'
 | Year | Number of disbursements | Amount disbursed to merchants | Amount of order fees | Number of monthly fees charged | Amount of monthly fees charged |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 2022 | 1509 | 36,928,327.40 € | 334,670.02 € | 31 | 562.83 € |
-| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 104 | 1,735.65 € |
+| 2023 | 10391 | 188,559,107.94 € | 1,714,752.55 € | 154 | 2,872.02 € |
 
 - **Year** of a disbursement is `disbursed_on`. An order placed on 31/12/2022 and disbursed on 01/01/2023 counts in 2023.
 - **Year** of a monthly fee is the closed month. The December 2022 fee counts in 2022.
 - **Amount disbursed to merchants** is net: order gross minus order commissions. Monthly fees are not subtracted.
 - **Number of monthly fees charged** and **Amount of monthly fees charged** count rows with `charged_cents > 0` (the month was evaluated and a fee was stored). A stored `0.00 €` row is not counted.
+- **Late-order adjustments** *Example using additional test data to demonstrate
+retroactive adjustments across reporting years.*
+
+![Yearly Report with Adjustments](docs/images/yearly-report-adjustments.png)
 
 ## Domain rules
 
