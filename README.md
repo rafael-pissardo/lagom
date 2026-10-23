@@ -61,7 +61,12 @@ bin/rails runner 'puts YearlyReportService.call.inspect'
 - **Number of monthly fees charged** and **Amount of monthly fees charged** count rows with `charged_cents > 0` (the month was evaluated and a fee was stored). A stored `0.00 €` row is not counted.
 - **Late-order adjustments** *Example using additional test data to demonstrate
 retroactive adjustments across reporting years.*
+- **Data reconciliation notes**
+cross-year disbursements: 8,254 orders placed in 2022 were disbursed in 2023, following their merchants' payment schedules. These orders are included in the 2023 disbursement totals, not 2022.
 
+Full-year monthly fees: Although the last order in the provided CSVs is dated November 7, 2023, the replay closes all months through December 2023. December alone accounts for 34 monthly fees totaling €840.00, included in the 2023 annual report.
+
+Both figures were independently verified against the provided CSVs.
 ![Yearly Report with Adjustments](docs/images/yearly-report-adjustments.png)
 
 ## Domain rules
