@@ -105,14 +105,6 @@ The challenge text does not decide these points. The code does.
 
 Example: minimum 29 €. September closed at 0 € commissions, so 1 October stores 29 €. A later import adds 40 € of September commission. The fee row stays 29 €. The adjustment is 40 € of commissions and a 29 € credit.
 
-```mermaid
-flowchart LR
-    classDef open fill:royalblue,stroke:navy,color:white
-    classDef stored fill:seagreen,stroke:darkgreen,color:white
-    classDef adjust fill:darkorange,stroke:chocolate,color:white
-    A["30 Sep 2022<br/>0 EUR commissions"]:::open --> B["1 Oct 2022<br/>Fee stored at 29 EUR"]:::stored --> C["Later import<br/>40 EUR arrives<br/>Fee stays 29 EUR<br/>Credit of 29 EUR"]:::adjust
-```
-
 If jobs did not run for years, one eligible day pays every pending order through yesterday in a single disbursement, and then closes every elapsed month that still has no fee. October of the run stays open.
 
 ## Decisions not taken
