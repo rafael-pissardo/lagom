@@ -61,7 +61,7 @@ RSpec.describe "Yearly report", type: :request do
     expect(rows).to eq(%w[2023 2022])
     expect(report("competence").text).to include("0.20 €")
     expect(report("competence").text).not_to include("0.15 €")
-    expect(header("Amount of monthly fees")).to be_present
+    expect(header("Amount of monthly fees charged")).to be_present
     expect(header("Total without adjustments")).to be_nil
     expect(report("adjustments").text).to include("Charged year").and include("Reference year").and include("0.15 €")
 
