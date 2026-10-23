@@ -35,6 +35,7 @@ class ReplaySettlementService
       next if merchant.live_on > date
 
       DisburseMerchantService.call(merchant:, as_of: date, ordered_on_through: end_of_year)
+      YearlyReportRefreshService.call(force: true)
     end
   end
 
@@ -48,6 +49,7 @@ class ReplaySettlementService
         month = month.next_month
       end
       AdjustMonthlyFeesService.call(merchant:)
+      YearlyReportRefreshService.call(force: true)
     end
   end
 
